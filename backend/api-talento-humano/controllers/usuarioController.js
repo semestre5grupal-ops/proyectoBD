@@ -61,11 +61,62 @@ const getAllUsuarios = async (req, res) => {
 
 const createUsuario = async (req, res) => {
   try {
-    const nuevoUsuario = await Usuario.createUsuario(req.body);
+    let { usu_nombre, usu_contra, usu_estado, id_empleado, id_rol } = req.body;
+    
+    if (usu_contra) {
+      const salt = await bcrypt.genSalt(10);
+      usu_contra = await bcrypt.hash(usu_contra, salt);
+    }
+
+    const nuevoUsuario = await Usuario.createUsuario({ usu_nombre, usu_contra, usu_estado, id_empleado, id_rol });
     res.status(201).json({ success: true, data: nuevoUsuario });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 };
 
-module.exports = { login, getAllUsuarios, createUsuario };
+const getUsuario = async (req, res) => {
+  try {
+    const usuario = await Usuario.getUsuarioById(req.params.id);
+    if (!usuario) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    res.status(200).json({ success: true, data: usuario });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+const updateUsuario = async (req, res) => {
+  try {
+    let { usu_nombre, usu_contra, usu_estado, id_empleado, id_rol } = req.body;
+    
+    if (usu_contra) {
+      const salt = await bcrypt.genSalt(10);
+      usu_contra = await bcrypt.hash(usu_contra, salt);
+    }
+
+    const usuarioActualizado = await Usuario.updateUsuario(req.params.id, { usu_nombre, usu_contra, usu_estado, id_empleado, id_rol });
+    if (!usuarioActualizado) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    res.status(200).json({ success: true, data: usuarioActualizado });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+const deleteUsuario = async (req, res) => {
+  try {
+    const usuarioEliminado = await Usuario.deleteUsuario(req.params.id);
+    if (!usuarioEliminado) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    res.status(200).json({ success: true, message: 'Usuario eliminado exitosamente' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+module.exports = { 
+  login, 
+  getAllUsuarios, 
+  getUsuario, 
+  createUsuario, 
+  updateUsuario, 
+  deleteUsuario 
+};

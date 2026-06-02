@@ -24,9 +24,34 @@ const createUsuario = async (usuario) => {
   return result.rows[0];
 };
 
+const updateUsuario = async (id, usuario) => {
+  const { usu_nombre, usu_contra, usu_estado, id_empleado, id_rol } = usuario;
+  
+  if (usu_contra) {
+    const result = await pool.query(
+      'UPDATE usuario SET usu_nombre = $1, usu_contra = $2, usu_estado = $3, id_empleado = $4, id_rol = $5 WHERE id_usuario = $6 RETURNING id_usuario, usu_nombre, usu_estado, id_empleado, id_rol',
+      [usu_nombre, usu_contra, usu_estado, id_empleado, id_rol, id]
+    );
+    return result.rows[0];
+  } else {
+    const result = await pool.query(
+      'UPDATE usuario SET usu_nombre = $1, usu_estado = $2, id_empleado = $3, id_rol = $4 WHERE id_usuario = $5 RETURNING id_usuario, usu_nombre, usu_estado, id_empleado, id_rol',
+      [usu_nombre, usu_estado, id_empleado, id_rol, id]
+    );
+    return result.rows[0];
+  }
+};
+
+const deleteUsuario = async (id) => {
+  const result = await pool.query('DELETE FROM usuario WHERE id_usuario = $1 RETURNING id_usuario, usu_nombre', [id]);
+  return result.rows[0];
+};
+
 module.exports = {
   getUsuarios,
   getUsuarioById,
   getUsuarioByNombre,
-  createUsuario
+  createUsuario,
+  updateUsuario,
+  deleteUsuario
 };
