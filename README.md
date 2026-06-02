@@ -62,3 +62,13 @@ Para que el sistema funcione de manera distribuida y sin problemas en el desplie
 
 ---
 
+## 🔒 Arquitectura de Autenticación Centralizada (SSO con JWT)
+
+El sistema utiliza un enfoque de **Proveedor de Identidad Centralizado** para evitar la duplicación de credenciales en las diferentes bases de datos.
+
+1. **El Guardián de Acceso:** Únicamente el **API de Talento Humano** (que posee las tablas de `usuario` y `rol`) es el encargado de procesar el Login.
+2. **JSON Web Tokens (JWT):** Cuando un usuario inicia sesión correctamente, Talento Humano genera un `Token JWT` firmado criptográficamente.
+3. **Uso del Token:** El Frontend guarda este Token y lo envía en la cabecera `Authorization: Bearer <token>` en **cada petición** que haga a cualquiera de las 4 APIs.
+4. **Validación Distribuida:** Las APIs de Compras, Ventas e Inventario **NO se conectan** a la base de datos de Talento Humano. En su lugar, comparten la misma clave secreta (`JWT_SECRET` en su `.env`). Al recibir una petición, usan esta clave secreta para verificar matemáticamente que el Token es auténtico y extraer de ahí el ID del usuario y su Rol.
+
+Esto garantiza un *Single Sign-On* rápido y descentraliza la carga de validación.
