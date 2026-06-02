@@ -24,7 +24,7 @@ const connectDB = async () => {
     client.release();
     return pool;
   } catch (error) {
-    console.error('❌ Error al conectar con la base de datos PostgreSQL:', error.message);
+    console.error('❌ Error al conectar con la base de datos PostgreSQL:', error);
     process.exit(1);
   }
 };
