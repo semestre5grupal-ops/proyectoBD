@@ -15,6 +15,7 @@ import {
   CreditCard,
   LayoutTemplate,
   Users,
+  Package,
 } from "lucide-react"
 import { Link } from "react-router-dom"
 import { Logo } from "@/components/logo"
@@ -52,6 +53,20 @@ const data = {
           url: "/dashboard-2",
           icon: LayoutPanelLeft,
         },
+      ],
+    },
+    // ── ERP Modules — Proyecto RDA3 (Comercial JW Cóndor) —————————————
+    {
+      label: "ERP — RDA3",
+      items: [
+        {
+          title: "Inventario (Paul)",
+          url: "/dashboard/inventario",
+          icon: Package,
+        },
+        // Gabriel — Ventas: agregar aquí cuando esté listo
+        // Liz — Compras: agregar aquí cuando esté listo
+        // Alejandro — Talento Humano: agregar aquí cuando esté listo
       ],
     },
     {
