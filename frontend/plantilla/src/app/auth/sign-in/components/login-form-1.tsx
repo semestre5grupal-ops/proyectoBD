@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/form"
 
 const loginFormSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.string().min(1, "El usuario es requerido"),
   password: z.string().min(1, "Password is required"),
 })
 
@@ -87,11 +87,10 @@ export function LoginForm1({
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Correo</FormLabel>
+                        <FormLabel>Usuario</FormLabel>
                         <FormControl>
                           <Input
-                            type="email"
-                            placeholder="admin@correo.com"
+                            placeholder="Ej. admin"
                             {...field}
                           />
                         </FormControl>

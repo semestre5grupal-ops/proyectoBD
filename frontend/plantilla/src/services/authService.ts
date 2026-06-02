@@ -1,10 +1,10 @@
 import { apiFetch } from './api';
 
 export const authService = {
-  login: async (usu_correo: string, usu_contrasena: string) => {
+  login: async (usu_nombre: string, usu_contra: string) => {
     const response = await apiFetch('/usuarios/login', {
       method: 'POST',
-      body: JSON.stringify({ usu_correo, usu_contrasena }),
+      body: JSON.stringify({ usu_nombre, usu_contra }),
     });
 
     if (!response.ok) {
