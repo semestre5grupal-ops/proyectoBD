@@ -46,11 +46,10 @@ export interface RouteConfig {
 }
 
 export const routes: RouteConfig[] = [
-  // Default route - redirect to dashboard
-  // Use relative path "dashboard" instead of "/dashboard" for basename compatibility
+  // Default route - redirect to dashboard if logged in, else to sign-in
   {
     path: "/",
-    element: <Navigate to="dashboard" replace />
+    element: localStorage.getItem('jwt_token') ? <Navigate to="dashboard" replace /> : <Navigate to="auth/sign-in" replace />
   },
 
   // Landing Page
