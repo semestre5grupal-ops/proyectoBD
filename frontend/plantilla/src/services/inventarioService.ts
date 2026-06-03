@@ -11,10 +11,19 @@
  *  ✅ No usa useState, useEffect ni ningún hook de React.
  *  ✅ No lanza alertas ni console.log de negocio.
  *  ✅ Toda la comunicación inter-módulos es por HTTP (sin conexiones directas a BD).
+ *
+ * SESIÓN 4 — Refactorización JWT:
+ *  ✅ Inyecta Authorization: Bearer <TOKEN> en todas las peticiones.
+ *  ✅ Usa la misma clave localStorage('jwt_token') de authService (Alejandro).
+ *  ✅ Ante 401/403 elimina el token y redirige a /auth/sign-in (espeja api.ts).
+ *  ✅ Lee la URL base desde VITE_API_INVENTARIO con fallback a la URL de Render.
  */
 
-// ─── URL base del microservicio de Inventario desplegado en Render ─────────────
-const API_BASE_URL = "https://api-inventario-1r1w.onrender.com";
+// ─── URL base del microservicio de Inventario ─────────────────────────────────
+// Lee la variable de entorno declarada en .env; si no existe usa la URL de Render.
+const API_BASE_URL =
+  (import.meta.env.VITE_API_INVENTARIO as string | undefined) ??
+  "https://api-inventario-1r1w.onrender.com";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TIPOS — Contratos de Request y Response según CONTEXTO_ACTUAL_PROYECTO.md
@@ -28,8 +37,6 @@ export interface IngresarStockPayload {
   descripcion: string;
   usuario: string;
 }
-
-// ── Responses estándar de la API ──────────────────────────────────────────────
 
 /** Respuesta base de la API: { success: true/false } + campos adicionales */
 export interface ApiBaseResponse {
@@ -62,30 +69,46 @@ export interface SincronizarCloudResponse extends ApiBaseResponse {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// HELPERS INTERNOS
+// HELPER INTERNO — apiFetch con inyección automática de JWT
+//
+// Por qué construimos el objeto Headers aquí y no en options:
+//   fetch() fusiona los headers de options con los que pasamos al constructor.
+//   Si pasamos `headers` como objeto en options, el spread lo sobreescribiría.
+//   Construir un Headers() propio y pasarlo como prop `headers` garantiza que
+//   Authorization siempre esté presente, independientemente del options del caller.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/**
- * Ejecuta un fetch y parsea el JSON.
- * Lanza un Error con el mensaje de la API si success === false o si el HTTP
- * status es un error, permitiendo que el controlador lo capture en su try-catch.
- */
 async function apiFetch<T extends ApiBaseResponse>(
   endpoint: string,
   options?: RequestInit
 ): Promise<T> {
+  // 1. Leer token del localStorage — misma clave que usa api.ts de Alejandro
+  const token = localStorage.getItem("jwt_token");
+
+  // 2. Construir headers con Content-Type + Authorization Bearer
+  const headers = new Headers({ "Content-Type": "application/json" });
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  // 3. Ejecutar la petición — headers va fuera del spread de options para que
+  //    no sea sobreescrito por un posible campo headers en options del caller.
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    headers: {
-      "Content-Type": "application/json",
-      // El token JWT se añadirá aquí en fases posteriores (SSO con Talento Humano):
-      // Authorization: `Bearer ${localStorage.getItem("jwt_token")}`,
-    },
     ...options,
+    headers, // siempre sobreescribe el headers de options
   });
+
+  // 4. Sesión expirada o sin permisos — espeja el comportamiento de api.ts
+  if (response.status === 401 || response.status === 403) {
+    localStorage.removeItem("jwt_token");
+    window.location.href = "/auth/sign-in";
+    // Lanzar aquí corta el flujo antes de intentar parsear un body de error HTML
+    throw new Error("Sesión expirada. Redirigiendo al inicio de sesión...");
+  }
 
   const data: T = await response.json();
 
-  // Si el servidor devuelve success: false, propagamos el error descriptivo
+  // 5. Propagar error de negocio (success: false del servidor)
   if (!data.success) {
     throw new Error(data.error ?? `Error HTTP ${response.status} en ${endpoint}`);
   }
@@ -94,13 +117,15 @@ async function apiFetch<T extends ApiBaseResponse>(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// FUNCIONES EXPORTADAS — Un método por endpoint validado
+// FUNCIONES EXPORTADAS — Un método por endpoint del microservicio
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
  * Consulta el stock disponible de una variante de producto.
  *
- * @param idVariante - ID de la variante a consultar (PK en variantes_producto)
+ * Requiere rol: ADMIN | EMPLEADO_BODEGA | CLIENTE_VISITANTE (JWT obligatorio)
+ *
+ * @param idVariante - PK en la tabla variantes_producto
  * @returns { success, id_bodega, stock_disponible }
  *
  * Endpoint: GET /api/inventario/stock/:idVariante
@@ -114,12 +139,12 @@ export async function consultarStock(
 }
 
 /**
- * Descuenta unidades del inventario tras una venta.
- * Este endpoint es consumido internamente por api-ventas (Gabriel),
- * pero también es accesible desde el frontend para validaciones directas.
+ * Descuenta unidades del inventario (consumido por api-ventas / ajuste manual).
+ *
+ * Requiere rol: ADMIN | EMPLEADO_BODEGA
  *
  * @param idVariante - ID de la variante de producto
- * @param cantidad   - Cantidad a descontar (debe ser > 0)
+ * @param cantidad   - Unidades a descontar (> 0)
  * @returns { success, message, stock_restante }
  *
  * Endpoint: POST /api/inventario/descontar
@@ -135,10 +160,10 @@ export async function descontarStock(
 }
 
 /**
- * Registra el ingreso de mercadería a bodega tras una compra.
- * Este endpoint es consumido internamente por api-compras (Liz),
- * pero también es accesible desde el dashboard de Paul para ajustes manuales.
- * Además de actualizar el stock, genera un registro de auditoría en la tabla `recepciones`.
+ * Registra el ingreso de mercadería a bodega.
+ * Genera auditoría en la tabla `recepciones` del microservicio.
+ *
+ * Requiere rol: ADMIN | EMPLEADO_BODEGA
  *
  * @param payload - { idVariante, cantidad, idBodega, descripcion, usuario }
  * @returns { success, message, stock_actual }
@@ -155,9 +180,10 @@ export async function ingresarStock(
 }
 
 /**
- * Dispara la sincronización masiva del catálogo de productos activos
- * desde Supabase hacia Firebase Realtime Database (nodo: /catalogo_ecommerce).
- * Es una operación de escritura total (PUT) que reemplaza el nodo completo en Firebase.
+ * Sincronización masiva del catálogo hacia Firebase Realtime Database.
+ * Operación de escritura total — reemplaza el nodo /catalogo_ecommerce completo.
+ *
+ * Requiere rol: ADMIN
  *
  * @returns { success, message, items_sincronizados }
  *

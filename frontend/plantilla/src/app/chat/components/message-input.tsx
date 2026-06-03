@@ -31,12 +31,18 @@ interface MessageInputProps {
   onSendMessage: (content: string) => void
   disabled?: boolean
   placeholder?: string
+  /** Función para activar/desactivar el reconocimiento de voz del hook use-agent */
+  toggleVoz?: () => void
+  /** Si true, el micrófono está escuchando activamente */
+  escuchando?: boolean
 }
 
 export function MessageInput({
   onSendMessage,
   disabled = false,
-  placeholder = "Type a message..."
+  placeholder = "Escribe una instrucción o usa el micrófono...",
+  toggleVoz,
+  escuchando = false,
 }: MessageInputProps) {
   const [message, setMessage] = useState("")
   const [isTyping, setIsTyping] = useState(false)
@@ -184,7 +190,7 @@ export function MessageInput({
           </div>
         </div>
 
-        {/* Voice message or send button */}
+        {/* Botón de voz o envío */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -197,18 +203,34 @@ export function MessageInput({
                   <Send className="h-4 w-4" />
                 </Button>
               ) : (
+                /* Botón micrófono — activo cuando escuchando === true */
                 <Button
-                  variant="ghost"
+                  variant={escuchando ? "destructive" : "ghost"}
                   size="icon"
                   disabled={disabled}
-                  className="cursor-pointer disabled:cursor-not-allowed"
+                  onClick={toggleVoz}
+                  className={cn(
+                    "cursor-pointer disabled:cursor-not-allowed relative transition-all duration-200",
+                    escuchando && [
+                      "ring-2 ring-destructive ring-offset-2",
+                      "after:absolute after:inset-0 after:rounded-md",
+                      "after:animate-ping after:bg-destructive/30",
+                    ]
+                  )}
+                  aria-label={escuchando ? "Detener grabación" : "Iniciar grabación de voz"}
                 >
-                  <Mic className="h-4 w-4" />
+                  <Mic className={cn("h-4 w-4", escuchando && "text-white")} />
                 </Button>
               )}
             </TooltipTrigger>
             <TooltipContent>
-              <p>{message.trim() ? "Send message" : "Voice message"}</p>
+              <p>
+                {message.trim()
+                  ? "Enviar mensaje"
+                  : escuchando
+                  ? "Detener grabación (escuchando...)"
+                  : "Grabar instrucción de voz"}
+              </p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

@@ -5,14 +5,21 @@
  * Proyecto RDA3 — Comercial JW Cóndor
  *
  * SESIÓN 4 — Mejoras implementadas:
- *  ✅ Panel analítico visual con barras CSS Tailwind (Light/Dark mode).
+ *  ✅ Panel analítico visual con gráficos SVG (Light/Dark mode).
  *  ✅ Control de acceso por roles (ADMIN / EMPLEADO_BODEGA / CLIENTE_VISITANTE).
  *  ✅ Selector de rol temporal en esquina superior (stub para SSO de Alejandro).
  *  ✅ Renderizado condicional estricto: formulario, sincronización y tabla por rol.
  *  ✅ Golden Rules: hook instanciado UNA sola vez, sin lógica de negocio en la vista.
+ *
+ * SESIÓN 4 — Integración JWT:
+ *  ✅ Lee jwt_token del localStorage (establecido por authService de Alejandro).
+ *  ✅ Decodifica el payload Base64 para extraer id_rol y usu_nombre del usuario real.
+ *  ✅ Mapea id_rol (número) al tipo RolUsuario usado por el RBAC del módulo.
+ *  ✅ Fallback a stub de desarrollo cuando no hay sesión activa.
+ *  ✅ El selector manual se oculta automáticamente cuando hay token real.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Package,
   Search,
@@ -582,11 +589,66 @@ export default function DashboardInventarioPage() {
   // ── Estado local: ID de variante a consultar ───────────────────────────────
   const [inputVariante, setInputVariante] = useState<string>("");
 
-  // ── Estado simulado de sesión de usuario (STUB — reemplazar por SSO) ───────
+  // ── Estado de sesión del usuario: se inicializa leyendo el JWT del browser ──
+  // Estrategia:
+  //   1. Leer jwt_token del localStorage (establecido por authService de Alejandro).
+  //   2. Decodificar el payload Base64 sin verificar firma (solo para UI — el
+  //      backend verifica la firma con verificarToken()).
+  //   3. Mapear id_rol (número) al enum RolUsuario de este módulo.
+  //   4. Si no hay token (modo dev / sin sesión), usar stub "Paul Admin / ADMIN".
+  //
+  // Mapeo de roles acordado con Alejandro (authMiddleware.js):
+  //   id_rol === 1  → ADMIN
+  //   id_rol === 2  → EMPLEADO_BODEGA
+  //   cualquier otro → CLIENTE_VISITANTE
   const [usuarioActivo, setUsuarioActivo] = useState<UsuarioActivo>({
     nombre: "Paul Admin",
     rol: "ADMIN",
   });
+
+  // Flag para saber si hay sesión real (oculta el selector manual en producción)
+  const [hayTokenReal, setHayTokenReal] = useState<boolean>(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem("jwt_token");
+    if (!token) return; // sin sesión: deja el stub activo
+
+    try {
+      const parts = token.split(".");
+      if (parts.length !== 3) return;
+
+      // Decodificación del payload Base64Url → JSON
+      // (misma técnica usada en src/app/compras/page.tsx)
+      const payload = JSON.parse(atob(parts[1])) as {
+        id_rol?: number;
+        usu_nombre?: string;
+        rol?: string;           // por si el SSO envía el string directamente
+      };
+
+      // Nombre a mostrar: prioriza usu_nombre, fallback a "Usuario"
+      const nombre = payload.usu_nombre ?? "Usuario";
+
+      // Determinar RolUsuario según el campo que traiga el JWT
+      let rol: RolUsuario;
+      if (typeof payload.rol === "string" &&
+          ["ADMIN", "EMPLEADO_BODEGA", "CLIENTE_VISITANTE"].includes(payload.rol)) {
+        // El SSO ya envía el string del rol directamente
+        rol = payload.rol as RolUsuario;
+      } else {
+        // Mapeo numérico: id_rol 1 = ADMIN, 2 = EMPLEADO_BODEGA, resto = visitante
+        const idRol = Number(payload.id_rol);
+        rol = idRol === 1 ? "ADMIN"
+            : idRol === 2 ? "EMPLEADO_BODEGA"
+            : "CLIENTE_VISITANTE";
+      }
+
+      setUsuarioActivo({ nombre, rol });
+      setHayTokenReal(true);
+    } catch {
+      // Token malformado: deja el stub activo sin romper la UI
+      console.warn("[InventarioDashboard] No se pudo decodificar el JWT.");
+    }
+  }, []); // solo al montar — el token no cambia sin recarga de página
 
   const ejecutarConsulta = () => {
     const id = parseInt(inputVariante, 10);
@@ -655,66 +717,84 @@ export default function DashboardInventarioPage() {
                 </span>
               </div>
 
-              {/* ─── Selector temporal de rol (STUB SSO) ─── */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    id="selector-rol-usuario"
-                    variant="outline"
-                    size="sm"
-                    className={cn("h-8 gap-2 text-xs font-medium", rolCfg.colorClass)}
-                  >
-                    <RolIcon size={13} />
-                    {usuarioActivo.nombre}
-                    <ChevronDown size={12} />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel className="text-xs text-muted-foreground">
-                    Simular sesión (stub SSO)
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    id="rol-admin"
-                    onClick={() =>
-                      setUsuarioActivo({ nombre: "Paul Admin", rol: "ADMIN" })
-                    }
-                    className="gap-2 text-sm"
-                  >
-                    <ShieldCheck size={14} className="text-primary" />
-                    <div>
-                      <p className="font-medium">ADMIN</p>
-                      <p className="text-xs text-muted-foreground">Permisos completos</p>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    id="rol-empleado"
-                    onClick={() =>
-                      setUsuarioActivo({ nombre: "María Bodega", rol: "EMPLEADO_BODEGA" })
-                    }
-                    className="gap-2 text-sm"
-                  >
-                    <ShieldAlert size={14} className="text-amber-500" />
-                    <div>
-                      <p className="font-medium">EMPLEADO_BODEGA</p>
-                      <p className="text-xs text-muted-foreground">Sin sincronización masiva</p>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    id="rol-visitante"
-                    onClick={() =>
-                      setUsuarioActivo({ nombre: "Cliente Visitante", rol: "CLIENTE_VISITANTE" })
-                    }
-                    className="gap-2 text-sm"
-                  >
-                    <ShieldOff size={14} className="text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">CLIENTE_VISITANTE</p>
-                      <p className="text-xs text-muted-foreground">Solo lectura</p>
-                    </div>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {/* ─── Selector de rol: solo visible en modo dev (sin JWT real) ─── */}
+              {!hayTokenReal ? (
+                /* Dropdown de simulación — desaparece cuando hay sesión real */
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      id="selector-rol-usuario"
+                      variant="outline"
+                      size="sm"
+                      className={cn("h-8 gap-2 text-xs font-medium", rolCfg.colorClass)}
+                    >
+                      <RolIcon size={13} />
+                      {usuarioActivo.nombre}
+                      <ChevronDown size={12} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">
+                      Simular sesión (stub SSO — modo dev)
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      id="rol-admin"
+                      onClick={() =>
+                        setUsuarioActivo({ nombre: "Paul Admin", rol: "ADMIN" })
+                      }
+                      className="gap-2 text-sm"
+                    >
+                      <ShieldCheck size={14} className="text-primary" />
+                      <div>
+                        <p className="font-medium">ADMIN</p>
+                        <p className="text-xs text-muted-foreground">Permisos completos</p>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      id="rol-empleado"
+                      onClick={() =>
+                        setUsuarioActivo({ nombre: "María Bodega", rol: "EMPLEADO_BODEGA" })
+                      }
+                      className="gap-2 text-sm"
+                    >
+                      <ShieldAlert size={14} className="text-amber-500" />
+                      <div>
+                        <p className="font-medium">EMPLEADO_BODEGA</p>
+                        <p className="text-xs text-muted-foreground">Sin sincronización masiva</p>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      id="rol-visitante"
+                      onClick={() =>
+                        setUsuarioActivo({ nombre: "Cliente Visitante", rol: "CLIENTE_VISITANTE" })
+                      }
+                      className="gap-2 text-sm"
+                    >
+                      <ShieldOff size={14} className="text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">CLIENTE_VISITANTE</p>
+                        <p className="text-xs text-muted-foreground">Solo lectura</p>
+                      </div>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                /* Badge de sesión real — reemplaza el selector en producción */
+                <div
+                  id="sesion-activa-badge"
+                  className={cn(
+                    "flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium",
+                    rolCfg.colorClass
+                  )}
+                >
+                  <RolIcon size={13} />
+                  <span>{usuarioActivo.nombre}</span>
+                  <Badge variant="secondary" className="h-4 px-1 text-[10px]">
+                    {rolCfg.label}
+                  </Badge>
+                </div>
+              )}
             </div>
           </div>
 
