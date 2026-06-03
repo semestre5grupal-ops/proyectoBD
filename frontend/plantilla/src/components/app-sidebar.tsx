@@ -194,6 +194,14 @@ const data = {
               url: "/settings/user",
             },
             {
+              title: "Gestión de Usuarios",
+              url: "/settings/usuarios",
+            },
+            {
+              title: "Gestión de Roles",
+              url: "/settings/roles",
+            },
+            {
               title: "Account Settings",
               url: "/settings/account",
             },
