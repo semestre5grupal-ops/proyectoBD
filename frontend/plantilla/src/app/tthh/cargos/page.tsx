@@ -35,21 +35,26 @@ export default function CargosPage() {
   const [carSueldobase, setCarSueldobase] = useState<number>(0)
   const [idDepartamento, setIdDepartamento] = useState<string>("")
 
+  const [totalPages, setTotalPages] = useState(1)
+
   useEffect(() => {
-    fetchData()
-  }, [])
+    // Implement debounce for search
+    const timer = setTimeout(() => {
+      fetchData()
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [currentPage, searchTerm])
 
   const fetchData = async () => {
     try {
       setLoading(true)
-      const [cargosData, deptosData] = await Promise.all([
-        cargoService.getAll(),
-        departamentoService.getAll()
+      const [cargosRes, deptosData] = await Promise.all([
+        cargoService.getAll(currentPage, ITEMS_PER_PAGE, searchTerm),
+        departamentoService.getAllList()
       ])
-      const activos = (Array.isArray(cargosData) ? cargosData : []).filter((c: Cargo) => c.car_estado !== 'INC' && c.car_estado !== 'INA')
-      setCargos(activos)
+      setCargos(cargosRes.data)
+      setTotalPages(cargosRes.totalPages || 1)
       setDepartamentos(Array.isArray(deptosData) ? deptosData : [])
-      setCurrentPage(1)
     } catch (err: any) {
       setError(err.message || "Error al cargar datos")
     } finally {
@@ -62,18 +67,7 @@ export default function CargosPage() {
     return dept ? dept.dep_nombre : "Desconocido"
   }
 
-  // Filtrado por búsqueda
-  const filteredCargos = cargos.filter(cargo => 
-    cargo.car_nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    getDeptName(cargo.id_departamento).toLowerCase().includes(searchTerm.toLowerCase())
-  )
-
-  // Cálculos de paginación
-  const totalPages = Math.ceil(filteredCargos.length / ITEMS_PER_PAGE)
-  const currentCargos = filteredCargos.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  )
+  const currentCargos = cargos;
 
   const handlePreviousPage = () => {
     if (currentPage > 1) setCurrentPage(currentPage - 1)
@@ -118,8 +112,7 @@ export default function CargosPage() {
         car_nombre: carNombre,
         car_sueldobase: Number(carSueldobase),
         id_departamento: parseInt(idDepartamento),
-        car_feccreacion: editingCargo?.car_feccreacion || new Date().toISOString(),
-        car_estado: editingCargo ? editingCargo.car_estado : "ACT"
+        car_feccreacion: editingCargo?.car_feccreacion || new Date().toISOString()
       }
 
       if (editingCargo && editingCargo.id_cargo) {
@@ -226,11 +219,9 @@ export default function CargosPage() {
                         <Button variant="ghost" size="icon" onClick={() => handleOpenModal(cargo)}>
                           <Edit2 size={16} className="text-blue-500" />
                         </Button>
-                        {cargo.car_estado !== 'INC' && (
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(cargo)}>
-                            <Trash2 size={16} className="text-red-500" />
-                          </Button>
-                        )}
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(cargo)}>
+                          <Trash2 size={16} className="text-red-500" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))

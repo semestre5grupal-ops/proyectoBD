@@ -4,6 +4,7 @@ import { SidebarConfigProvider } from '@/contexts/sidebar-context'
 import { AppRouter } from '@/components/router/app-router'
 import { useEffect } from 'react'
 import { initGTM } from '@/utils/analytics'
+import { Toaster } from '@/components/ui/sonner'
 
 // Get basename from environment (for deployment) or use empty string for development
 const basename = import.meta.env.VITE_BASENAME || ''
@@ -22,6 +23,7 @@ function App() {
             <AppRouter />
           </Router>
         </SidebarConfigProvider>
+        <Toaster />
       </ThemeProvider>
     </div>
   )

@@ -7,11 +7,28 @@ export interface Departamento {
   dep_feccreacion: string;
 }
 
+export interface PaginatedResponse<T> {
+  data: T[];
+  totalRecords: number;
+  totalPages: number;
+  currentPage: number;
+}
+
 export const departamentoService = {
-  getAll: async (): Promise<Departamento[]> => {
-    const response = await apiFetch('/departamento');
+  getAll: async (page = 1, limit = 20, search = ''): Promise<PaginatedResponse<Departamento>> => {
+    const query = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (search) query.append('search', search);
+    
+    const response = await apiFetch(`/departamento?${query.toString()}`);
     if (!response.ok) throw new Error('Error al obtener departamentos');
     return await response.json();
+  },
+
+  getAllList: async (): Promise<Departamento[]> => {
+    const response = await apiFetch('/departamento?limit=all');
+    if (!response.ok) throw new Error('Error al obtener departamentos');
+    const res = await response.json();
+    return res.data || res;
   },
 
   getById: async (id: number) => {

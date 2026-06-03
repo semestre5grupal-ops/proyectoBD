@@ -29,7 +29,7 @@ const updateRolpagos = async (id, data) => {
 };
 
 const deleteRolpagos = async (id) => {
-  const result = await pool.query("UPDATE rolpagos SET rol_estado = 'Anulado' WHERE id_rol = $1 RETURNING *", [id]);
+  const result = await pool.query("UPDATE rolpagos SET rol_estado = 'ANU' WHERE id_rol = $1 RETURNING *", [id]);
   return result.rows[0];
 };
 

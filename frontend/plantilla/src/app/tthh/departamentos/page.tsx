@@ -30,17 +30,22 @@ export default function DepartamentosPage() {
   // Form fields
   const [depNombre, setDepNombre] = useState("")
 
+  const [totalPages, setTotalPages] = useState(1)
+
   useEffect(() => {
-    fetchData()
-  }, [])
+    // Implement debounce for search
+    const timer = setTimeout(() => {
+      fetchData()
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [currentPage, searchTerm])
 
   const fetchData = async () => {
     try {
       setLoading(true)
-      const data = await departamentoService.getAll()
-      const activos = (Array.isArray(data) ? data : []).filter((d: Departamento) => d.dep_estado !== 'INC' && d.dep_estado !== 'INA')
-      setDepartamentos(activos)
-      setCurrentPage(1)
+      const res = await departamentoService.getAll(currentPage, ITEMS_PER_PAGE, searchTerm)
+      setDepartamentos(res.data)
+      setTotalPages(res.totalPages || 1)
     } catch (err: any) {
       setError(err.message || "Error al cargar datos")
     } finally {
@@ -48,17 +53,7 @@ export default function DepartamentosPage() {
     }
   }
 
-  // Filtrado por búsqueda
-  const filteredDepartamentos = departamentos.filter(dept => 
-    dept.dep_nombre.toLowerCase().includes(searchTerm.toLowerCase())
-  )
-
-  // Cálculos de paginación
-  const totalPages = Math.ceil(filteredDepartamentos.length / ITEMS_PER_PAGE)
-  const currentDepartamentos = filteredDepartamentos.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  )
+  const currentDepartamentos = departamentos;
 
   const handlePreviousPage = () => {
     if (currentPage > 1) setCurrentPage(currentPage - 1)
@@ -243,11 +238,11 @@ export default function DepartamentosPage() {
           <DialogHeader>
             <DialogTitle>{editingDept ? "Editar Departamento" : "Nuevo Departamento"}</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-4 px-1">
             <div className="grid gap-2">
-              <Label htmlFor="nombre">Nombre del Departamento</Label>
+              <Label htmlFor="dep_nombre">Nombre del Departamento *</Label>
               <Input 
-                id="nombre" 
+                id="dep_nombre" 
                 value={depNombre} 
                 onChange={(e) => setDepNombre(e.target.value)} 
                 placeholder="Ej. Recursos Humanos"

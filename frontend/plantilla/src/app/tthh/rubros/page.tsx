@@ -38,7 +38,7 @@ export default function RubrosPage() {
     try {
       setLoading(true)
       const data = await rubroService.getAll()
-      setRubros(Array.isArray(data) ? data : [])
+      setRubros(Array.isArray(data) ? data.filter((r: Rubro) => r.rub_estado !== 'INC') : [])
       setCurrentPage(1)
     } catch (err: any) {
       setError(err.message || "Error al cargar datos")
@@ -58,14 +58,18 @@ export default function RubrosPage() {
     currentPage * ITEMS_PER_PAGE
   )
 
+  const handlePreviousPage = () => setCurrentPage(prev => Math.max(prev - 1, 1))
+  const handleNextPage = () => setCurrentPage(prev => Math.min(prev + 1, totalPages))
+
   const handleOpenModal = (rub?: Rubro) => {
     if (rub) {
       setEditingRubro(rub)
       setFormData({
         rub_descripcion: rub.rub_descripcion,
         rub_estado: rub.rub_estado,
-        rub_tipo: rub.rub_tipo,
-        rub_calculable: rub.rub_calculable
+        // Map boolean to select value string
+        rub_tipo: (rub.rub_tipo === true || String(rub.rub_tipo).toLowerCase() === 'ingreso' || String(rub.rub_tipo) === '1') ? "Ingreso" : "Descuento",
+        rub_escalculable: Boolean(rub.rub_escalculable)
       })
     } else {
       setEditingRubro(null)
@@ -73,7 +77,7 @@ export default function RubrosPage() {
         rub_descripcion: "",
         rub_estado: "ACT",
         rub_tipo: "Ingreso",
-        rub_calculable: "No"
+        rub_escalculable: false
       })
     }
     setIsModalOpen(true)
@@ -90,25 +94,24 @@ export default function RubrosPage() {
   }
 
   const handleSave = async () => {
-    if (!formData.rub_descripcion || !formData.rub_tipo || !formData.rub_calculable) {
+    if (!formData.rub_descripcion || !formData.rub_tipo) {
       toast.error("Por favor completa los campos obligatorios")
       return
     }
 
     try {
-      const data: Rubro = {
-        ...(editingRubro || {}),
-        rub_descripcion: formData.rub_descripcion,
-        rub_estado: formData.rub_estado,
-        rub_tipo: formData.rub_tipo,
-        rub_calculable: formData.rub_calculable
+      const dataToSave = {
+        ...formData,
+        // Ensure rub_tipo is sent as boolean to the backend
+        rub_tipo: formData.rub_tipo === "Ingreso" || formData.rub_tipo === true || String(formData.rub_tipo) === "1" ? true : false,
+        rub_escalculable: Boolean(formData.rub_escalculable)
       }
 
-      if (editingRubro && editingRubro.id_rubros) {
-        await rubroService.update(editingRubro.id_rubros, data)
+      if (editingRubro) {
+        await rubroService.update(editingRubro.id_rubros, dataToSave as Rubro)
         toast.success("Rubro actualizado exitosamente")
       } else {
-        await rubroService.create(data)
+        await rubroService.create(dataToSave as Rubro)
         toast.success("Rubro creado exitosamente")
       }
       handleCloseModal()
@@ -177,66 +180,52 @@ export default function RubrosPage() {
                 <TableRow>
                   <TableHead>Descripción</TableHead>
                   <TableHead>Tipo</TableHead>
-                  <TableHead className="text-center">Calculable</TableHead>
-                  <TableHead>Estado</TableHead>
+                  <TableHead>Calculable</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {currentRubros.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
+                    <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
                       No hay rubros registrados.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  currentRubros.map((rub) => (
+                  currentRubros.map((rub) => {
+                    const isIngreso = rub.rub_tipo === true || String(rub.rub_tipo).toLowerCase() === 'ingreso' || String(rub.rub_tipo) === '1';
+                    return (
                     <TableRow key={rub.id_rubros}>
                       <TableCell className="font-medium">{rub.rub_descripcion}</TableCell>
                       <TableCell>
                         <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset ${
-                          rub.rub_tipo === 'Ingreso' 
+                          isIngreso
                             ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' 
                             : 'bg-red-50 text-red-700 ring-red-600/20'
                         }`}>
-                          {rub.rub_tipo}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset ${
-                          rub.rub_calculable === 'Si' 
-                            ? 'bg-blue-50 text-blue-700 ring-blue-600/20' 
-                            : 'bg-gray-50 text-gray-700 ring-gray-600/20'
-                        }`}>
-                          {rub.rub_calculable}
+                          {isIngreso ? 'Ingreso' : 'Descuento'}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset ${
-                          rub.rub_estado === 'ACT' 
-                            ? 'bg-green-50 text-green-700 ring-green-600/20' 
-                            : 'bg-gray-50 text-gray-700 ring-gray-600/20'
-                        }`}>
-                          {rub.rub_estado}
+                        <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset ${rub.rub_escalculable ? 'bg-indigo-50 text-indigo-700 ring-indigo-600/20' : 'bg-slate-50 text-slate-600 ring-slate-500/10'}`}>
+                          {rub.rub_escalculable ? 'Sí' : 'No'}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => handleOpenModal(rub)}>
                           <Edit2 size={16} className="text-blue-500" />
                         </Button>
-                        {rub.rub_estado !== 'INC' && (
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(rub)}>
-                            <Trash2 size={16} className="text-red-500" />
-                          </Button>
-                        )}
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(rub)}>
+                          <Trash2 size={16} className="text-red-500" />
+                        </Button>
                       </TableCell>
                     </TableRow>
-                  ))
+                    )
+                  })
                 )}
               </TableBody>
             </Table>
             
-            {/* Controles de Paginación */}
             {filteredRubros.length > ITEMS_PER_PAGE && (
               <div className="flex items-center justify-between px-4 py-3 border-t">
                 <div className="text-sm text-muted-foreground">
@@ -292,33 +281,18 @@ export default function RubrosPage() {
                 </select>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="rub_calculable">Calculable *</Label>
+                <Label htmlFor="rub_escalculable">¿Es Calculable?</Label>
                 <select 
-                  id="rub_calculable" 
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
-                  value={formData.rub_calculable}
-                  onChange={handleInputChange as any}
+                  id="rub_escalculable" 
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  value={formData.rub_escalculable ? "true" : "false"}
+                  onChange={(e) => setFormData(prev => ({ ...prev, rub_escalculable: e.target.value === "true" }))}
                 >
-                  <option value="Si">Sí</option>
-                  <option value="No">No</option>
+                  <option value="true">Sí</option>
+                  <option value="false">No</option>
                 </select>
               </div>
             </div>
-
-            {editingRubro && (
-              <div className="grid gap-2">
-                <Label htmlFor="rub_estado">Estado *</Label>
-                <select 
-                  id="rub_estado" 
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
-                  value={formData.rub_estado}
-                  onChange={handleInputChange as any}
-                >
-                  <option value="ACT">Activo</option>
-                  <option value="INC">Inactivo</option>
-                </select>
-              </div>
-            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseModal}>Cancelar</Button>

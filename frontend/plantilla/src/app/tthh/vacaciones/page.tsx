@@ -48,7 +48,7 @@ export default function VacacionesPage() {
         empleadoService.getEmpleados()
       ])
       
-      setVacaciones(Array.isArray(vacData) ? vacData : [])
+      setVacaciones(Array.isArray(vacData) ? vacData.filter((v: Vacacion) => v.vac_estado !== 'INC') : [])
       setContratos(Array.isArray(conData) ? conData : [])
       setEmpleados(Array.isArray(empData) ? empData : [])
       setCurrentPage(1)
@@ -134,10 +134,12 @@ export default function VacacionesPage() {
       const data: Vacacion = {
         ...(editingVac || {}),
         id_contrato: parseInt(formData.id_contrato),
+        vac_estado: editingVac ? editingVac.vac_estado : "Programada",
         vac_periodo: formData.vac_periodo,
         vac_diasg: parseInt(formData.vac_diasg) || 0,
         vac_diasp: parseInt(formData.vac_diasp) || 0,
-        vac_saldo: parseInt(formData.vac_saldo) || 0
+        vac_saldo: parseInt(formData.vac_saldo) || 0,
+        vac_fechafin: formData.vac_fechafin
       }
 
       if (editingVac && editingVac.id_vacacion) {

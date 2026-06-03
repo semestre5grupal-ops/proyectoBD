@@ -39,20 +39,25 @@ export default function EmpleadosPage() {
     id_departamento: ""
   })
 
+  const [totalPages, setTotalPages] = useState(1)
+
   useEffect(() => {
-    fetchData()
-  }, [])
+    const timer = setTimeout(() => {
+      fetchData()
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [currentPage, searchTerm])
 
   const fetchData = async () => {
     try {
       setLoading(true)
-      const [empData, depData] = await Promise.all([
-        empleadoService.getEmpleados(),
-        departamentoService.getAll()
+      const [empRes, depData] = await Promise.all([
+        empleadoService.getEmpleados(currentPage, ITEMS_PER_PAGE, searchTerm),
+        departamentoService.getAllList()
       ])
-      setEmpleados(Array.isArray(empData) ? empData : [])
-      setDepartamentos(Array.isArray(depData) ? depData.filter((d: Departamento) => d.dep_estado === 'ACT') : [])
-      setCurrentPage(1)
+      setEmpleados(empRes.data || [])
+      setTotalPages(empRes.totalPages || 1)
+      setDepartamentos(Array.isArray(depData) ? depData : [])
     } catch (err: any) {
       setError(err.message || "Error al cargar datos")
     } finally {
@@ -60,20 +65,7 @@ export default function EmpleadosPage() {
     }
   }
 
-  const filteredEmpleados = empleados.filter(emp => {
-    const term = searchTerm.toLowerCase()
-    return (
-      (emp.emp_nom1 || "").toLowerCase().includes(term) ||
-      (emp.emp_ap1 || "").toLowerCase().includes(term) ||
-      (emp.emp_cedula || "").includes(term)
-    )
-  })
-
-  const totalPages = Math.ceil(filteredEmpleados.length / ITEMS_PER_PAGE)
-  const currentEmpleados = filteredEmpleados.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  )
+  const currentEmpleados = empleados;
 
   const handlePreviousPage = () => {
     if (currentPage > 1) setCurrentPage(currentPage - 1)

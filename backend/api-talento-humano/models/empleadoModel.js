@@ -1,8 +1,32 @@
 const { pool } = require('../config/db');
 
-const getEmpleados = async () => {
-  const result = await pool.query('SELECT * FROM empleados ORDER BY id_empleado ASC');
-  return result.rows;
+const getEmpleados = async (options = {}) => {
+  const { page = 1, limit = 20, search = '' } = options;
+
+  const offset = (page - 1) * limit;
+  let query = "SELECT * FROM empleados WHERE emp_estado != 'INC'";
+  const values = [];
+
+  if (search) {
+    query += " AND (emp_cedula ILIKE $1 OR emp_nom1 ILIKE $1 OR emp_ap1 ILIKE $1 OR CONCAT(emp_nom1, ' ', emp_ap1) ILIKE $1)";
+    values.push(`%${search}%`);
+  }
+
+  const countQuery = `SELECT COUNT(*) FROM (${query}) AS count_query`;
+  const countResult = await pool.query(countQuery, values);
+  const totalRecords = parseInt(countResult.rows[0].count, 10);
+
+  query += " ORDER BY id_empleado DESC LIMIT $" + (values.length + 1) + " OFFSET $" + (values.length + 2);
+  values.push(limit, offset);
+
+  const result = await pool.query(query, values);
+  
+  return {
+    data: result.rows,
+    totalRecords,
+    totalPages: Math.ceil(totalRecords / limit),
+    currentPage: parseInt(page, 10)
+  };
 };
 
 const getEmpleadoById = async (id) => {

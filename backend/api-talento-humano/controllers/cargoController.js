@@ -2,8 +2,10 @@ const Cargo = require('../models/cargoModel');
 
 const getAllCargos = async (req, res) => {
   try {
-    const data = await Cargo.getCargos();
-    res.status(200).json({ success: true, data });
+    const { page, limit, search } = req.query;
+    const limitAll = req.query.limit === 'all';
+    const result = await Cargo.getCargos({ page, limit, search, limitAll });
+    res.status(200).json({ success: true, ...result });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

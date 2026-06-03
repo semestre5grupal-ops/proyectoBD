@@ -49,7 +49,7 @@ export default function AsistenciasPage() {
         : []
         
       setAsistencias(sortedAsis)
-      setEmpleados(Array.isArray(empData) ? empData : [])
+      setEmpleados(Array.isArray(empData) ? empData.filter(e => e.emp_estado !== 'INC' && e.emp_estado !== 'INA') : [])
       setCurrentPage(1)
     } catch (err: any) {
       setError(err.message || "Error al cargar datos")
@@ -63,12 +63,21 @@ export default function AsistenciasPage() {
     return emp ? `${emp.emp_nom1} ${emp.emp_ap1}` : "Desconocido"
   }
 
+  const getMovimientoLabel = (mov: string) => {
+    if (!mov) return "Desconocido";
+    const cleanMov = mov.trim();
+    if (cleanMov === 'ENTRA') return 'Entrada';
+    if (cleanMov === 'SALE') return 'Salida';
+    return mov;
+  }
+
   const filteredAsistencias = asistencias.filter(asis => {
     const term = searchTerm.toLowerCase()
     const empName = getEmpleadoName(asis.id_empleado).toLowerCase()
+    const movLabel = getMovimientoLabel(asis.tipo_movimiento).toLowerCase()
     return (
       empName.includes(term) ||
-      asis.tipo_movimiento.toLowerCase().includes(term)
+      movLabel.includes(term)
     )
   })
 
@@ -90,7 +99,7 @@ export default function AsistenciasPage() {
       setFormData({
         id_empleado: String(asis.id_empleado),
         fecha_hora: localISOTime,
-        tipo_movimiento: asis.tipo_movimiento
+        tipo_movimiento: getMovimientoLabel(asis.tipo_movimiento)
       })
     } else {
       setEditingAsistencia(null)
@@ -128,7 +137,7 @@ export default function AsistenciasPage() {
         ...(editingAsistencia || {}),
         id_empleado: parseInt(formData.id_empleado),
         fecha_hora: new Date(formData.fecha_hora).toISOString(),
-        tipo_movimiento: formData.tipo_movimiento
+        tipo_movimiento: formData.tipo_movimiento === 'Entrada' ? 'ENTRA' : 'SALE '
       }
 
       if (editingAsistencia && editingAsistencia.id_asistencia) {
@@ -223,11 +232,11 @@ export default function AsistenciasPage() {
                         <TableCell>{dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</TableCell>
                         <TableCell>
                           <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset ${
-                            asis.tipo_movimiento === 'Entrada' 
+                            (asis.tipo_movimiento || '').trim() === 'ENTRA' 
                               ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' 
                               : 'bg-orange-50 text-orange-700 ring-orange-600/20'
                           }`}>
-                            {asis.tipo_movimiento}
+                            {getMovimientoLabel(asis.tipo_movimiento)}
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
@@ -245,7 +254,6 @@ export default function AsistenciasPage() {
               </TableBody>
             </Table>
             
-            {/* Controles de Paginación */}
             {filteredAsistencias.length > ITEMS_PER_PAGE && (
               <div className="flex items-center justify-between px-4 py-3 border-t">
                 <div className="text-sm text-muted-foreground">
@@ -255,7 +263,7 @@ export default function AsistenciasPage() {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={handlePreviousPage}
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                     disabled={currentPage === 1}
                   >
                     Anterior
@@ -263,7 +271,7 @@ export default function AsistenciasPage() {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={handleNextPage}
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                     disabled={currentPage === totalPages}
                   >
                     Siguiente
