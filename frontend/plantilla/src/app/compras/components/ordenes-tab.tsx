@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Compra, Proveedor, Proxoc } from "../services/compras-service";
+import { getCompraDetails } from "../services/compras-service";
 import type { Variante } from "../services/inventario-service";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -9,8 +10,55 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Eye, Check, X, Search, ShoppingCart, Trash2 } from "lucide-react";
+import { Plus, Eye, Search, ShoppingCart, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
+import { CompraDetailModal } from "./compra-detail-modal";
+import { getRolCompras } from "../utils/rbac";
+
+interface VariantAttributes {
+  id_variante: number;
+  productName: string;
+  colorOrFlavor: string;
+  sizeOrWeight: string;
+}
+
+const parseVariantAttributes = (v: { id_variante: number; var_nombre: string; var_precio_venta: number }): VariantAttributes => {
+  const name = v.var_nombre;
+  const nameLower = name.toLowerCase();
+  let productName = name;
+  let colorOrFlavor = "Estándar";
+  let sizeOrWeight = "Única";
+
+  const colors = ["rojo", "roja", "azul", "negro", "negra", "blanco", "blanca", "amarillo", "verde", "gris", "marrón", "cafe", "rosa", "lila"];
+  const sizes = ["xs", "s", "m", "l", "xl", "xxl", "30", "32", "34", "36", "38", "40", "unidad"];
+
+  for (const c of colors) {
+    if (nameLower.includes(c)) {
+      colorOrFlavor = c.charAt(0).toUpperCase() + c.slice(1);
+      productName = productName.replace(new RegExp(c, "gi"), "").trim();
+      break;
+    }
+  }
+
+  for (const s of sizes) {
+    const regex = new RegExp(`\\b${s}\\b|${s}`, "i");
+    if (regex.test(nameLower)) {
+      sizeOrWeight = s.toUpperCase();
+      productName = productName.replace(regex, "").trim();
+      break;
+    }
+  }
+
+  productName = productName.replace(/\s+/g, " ").trim();
+  if (!productName) productName = name;
+
+  return {
+    id_variante: v.id_variante,
+    productName,
+    colorOrFlavor,
+    sizeOrWeight
+  };
+};
 
 interface OrdenesTabProps {
   orders: Compra[];
@@ -18,6 +66,7 @@ interface OrdenesTabProps {
   variants: Variante[];
   onCreateOrder: (order: Compra) => Promise<boolean>;
   onUpdateOrderStatus: (id: number, status: 'ABI' | 'APR' | 'ANU') => Promise<boolean>;
+  onUpdateOrder: (id: number, order: Compra) => Promise<boolean>;
 }
 
 export function OrdenesTab({
@@ -25,12 +74,19 @@ export function OrdenesTab({
   suppliers,
   variants,
   onCreateOrder,
-  onUpdateOrderStatus
+  onUpdateOrderStatus,
+  onUpdateOrder
 }: OrdenesTabProps) {
   const [search, setSearch] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Compra | null>(null);
+  const [defaultEditMode, setDefaultEditMode] = useState(false);
+  const [role, setRole] = useState<'JEFE' | 'AUX' | 'OPER' | 'NONE'>('NONE');
+
+  useEffect(() => {
+    setRole(getRolCompras());
+  }, []);
 
   // Creator Form state
   const [proveedorId, setProveedorId] = useState("");
@@ -43,14 +99,80 @@ export function OrdenesTab({
   const [quantity, setQuantity] = useState(1);
   const [unitCost, setUnitCost] = useState(0);
 
-  const handleVariantChange = (id: string) => {
-    setSelectedVariantId(id);
-    const variant = variants.find(v => v.id_variante === Number(id));
-    if (variant) {
-      // default cost can be half of price sale or variant base value
-      setUnitCost(variant.var_precio_venta * 0.6); 
+  // Dynamic dropdown state selectors
+  const [selectedProduct, setSelectedProduct] = useState("");
+  const [selectedColor, setSelectedColor] = useState("");
+  const [selectedSize, setSelectedSize] = useState("");
+
+  // Parse all variants to get attributes
+  const parsedVariants = variants.map(v => parseVariantAttributes(v));
+
+  // 1. Unique Products list
+  const uniqueProducts = Array.from(new Set(parsedVariants.map(pv => pv.productName))).sort();
+
+  // 2. Colors list based on selected product
+  const availableColors = selectedProduct
+    ? Array.from(new Set(parsedVariants.filter(pv => pv.productName === selectedProduct).map(pv => pv.colorOrFlavor))).sort()
+    : [];
+
+  // 3. Sizes list based on selected product & color
+  const availableSizes = selectedProduct && selectedColor
+    ? Array.from(
+        new Set(
+          parsedVariants
+            .filter(pv => pv.productName === selectedProduct && pv.colorOrFlavor === selectedColor)
+            .map(pv => pv.sizeOrWeight)
+        )
+      ).sort()
+    : [];
+
+  // Resolve id_variante from options selection
+  useEffect(() => {
+    if (selectedProduct && selectedColor && selectedSize) {
+      const match = parsedVariants.find(
+        pv =>
+          pv.productName === selectedProduct &&
+          pv.colorOrFlavor === selectedColor &&
+          pv.sizeOrWeight === selectedSize
+      );
+      if (match) {
+        setSelectedVariantId(match.id_variante.toString());
+        const variant = variants.find(v => v.id_variante === match.id_variante);
+        if (variant) {
+          setUnitCost(variant.var_precio_venta * 0.6);
+        }
+      } else {
+        setSelectedVariantId("");
+      }
+    } else {
+      setSelectedVariantId("");
     }
-  };
+  }, [selectedProduct, selectedColor, selectedSize, variants]);
+
+  // Auto-select single options
+  useEffect(() => {
+    if (selectedProduct) {
+      if (availableColors.length === 1 && selectedColor !== availableColors[0]) {
+        setSelectedColor(availableColors[0]);
+      }
+    }
+  }, [selectedProduct, availableColors, selectedColor]);
+
+  useEffect(() => {
+    if (selectedProduct && selectedColor) {
+      if (availableSizes.length === 1 && selectedSize !== availableSizes[0]) {
+        setSelectedSize(availableSizes[0]);
+      }
+    }
+  }, [selectedProduct, selectedColor, availableSizes, selectedSize]);
+
+  // Reset selectors on create open toggle
+  useEffect(() => {
+    setSelectedProduct("");
+    setSelectedColor("");
+    setSelectedSize("");
+    setSelectedVariantId("");
+  }, [isCreateOpen]);
 
   const handleAddItem = () => {
     if (!selectedVariantId || quantity <= 0 || unitCost <= 0) return;
@@ -70,6 +192,9 @@ export function OrdenesTab({
     };
 
     setItems([...items, newItem]);
+    setSelectedProduct("");
+    setSelectedColor("");
+    setSelectedSize("");
     setSelectedVariantId("");
     setQuantity(1);
     setUnitCost(0);
@@ -89,6 +214,9 @@ export function OrdenesTab({
     setFechaEntrega("");
     setIvaPercent("15");
     setItems([]);
+    setSelectedProduct("");
+    setSelectedColor("");
+    setSelectedSize("");
     setSelectedVariantId("");
     setQuantity(1);
     setUnitCost(0);
@@ -120,8 +248,20 @@ export function OrdenesTab({
     }
   };
 
-  const handleOpenDetail = (order: Compra) => {
-    setSelectedOrder(order);
+  const handleOpenDetail = async (order: Compra, editMode = false) => {
+    if (order.id_compra) {
+      try {
+        const fullOrder = await getCompraDetails(order.id_compra);
+        setSelectedOrder(fullOrder);
+      } catch (e: any) {
+        console.error("Error loading order details", e);
+        toast.error("No se pudo cargar el detalle de la orden");
+        setSelectedOrder(order);
+      }
+    } else {
+      setSelectedOrder(order);
+    }
+    setDefaultEditMode(editMode);
     setIsDetailOpen(true);
   };
 
@@ -205,28 +345,18 @@ export function OrdenesTab({
                           <Badge variant="outline" className={badgeStyles}>{statusLabel}</Badge>
                         </TableCell>
                         <TableCell className="text-right gap-1 flex items-center justify-end">
-                          <Button variant="ghost" size="icon" onClick={() => handleOpenDetail(order)}>
+                          <Button variant="ghost" size="icon" onClick={() => handleOpenDetail(order, false)}>
                             <Eye className="h-4 w-4" />
                           </Button>
-                          {order.oc_estado === 'ABI' && (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/20"
-                                onClick={() => onUpdateOrderStatus(order.id_compra!, 'APR')}
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
-                                onClick={() => onUpdateOrderStatus(order.id_compra!, 'ANU')}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </>
+                          {order.oc_estado === 'ABI' && (role === 'JEFE' || role === 'AUX') && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-primary hover:text-primary/80"
+                              onClick={() => handleOpenDetail(order, true)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
                           )}
                         </TableCell>
                       </TableRow>
@@ -298,23 +428,51 @@ export function OrdenesTab({
               {/* Detail Selector */}
               <div className="border rounded-lg p-4 bg-muted/30">
                 <h4 className="text-sm font-semibold mb-3">Agregar Item al Detalle</h4>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                  <div className="flex flex-col gap-2 md:col-span-2">
-                    <Label htmlFor="variant_opt">Variante de Chocolate</Label>
-                    <Select value={selectedVariantId} onValueChange={handleVariantChange}>
-                      <SelectTrigger id="variant_opt">
-                        <SelectValue placeholder="Seleccione variante" />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="product_sel">Producto</Label>
+                    <Select value={selectedProduct} onValueChange={(val) => { setSelectedProduct(val); setSelectedColor(""); setSelectedSize(""); }}>
+                      <SelectTrigger id="product_sel">
+                        <SelectValue placeholder="Seleccione producto" />
                       </SelectTrigger>
                       <SelectContent>
-                        {variants.map(v => (
-                          <SelectItem key={v.id_variante} value={v.id_variante.toString()}>
-                            {v.var_nombre} (${v.var_precio_venta.toFixed(2)})
-                          </SelectItem>
+                        {uniqueProducts.map(p => (
+                          <SelectItem key={p} value={p}>{p}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
 
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="color_sel">Color</Label>
+                    <Select value={selectedColor} onValueChange={(val) => { setSelectedColor(val); setSelectedSize(""); }} disabled={!selectedProduct}>
+                      <SelectTrigger id="color_sel">
+                        <SelectValue placeholder={selectedProduct ? "Seleccione color" : "Primero elija producto"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableColors.map(c => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="size_sel">Talla</Label>
+                    <Select value={selectedSize} onValueChange={setSelectedSize} disabled={!selectedColor}>
+                      <SelectTrigger id="size_sel">
+                        <SelectValue placeholder={selectedColor ? "Seleccione talla" : "Primero elija color"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableSizes.map(s => (
+                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 items-end">
                   <div className="flex flex-col gap-2">
                     <Label htmlFor="qty_opt">Cantidad</Label>
                     <Input
@@ -337,12 +495,18 @@ export function OrdenesTab({
                       onChange={(e) => setUnitCost(Math.max(0, Number(e.target.value)))}
                     />
                   </div>
-                </div>
 
-                <div className="flex justify-end mt-4">
-                  <Button type="button" variant="outline" size="sm" onClick={handleAddItem}>
-                    Agregar Item
-                  </Button>
+                  <div>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={handleAddItem}
+                      disabled={!selectedVariantId}
+                    >
+                      Agregar Item
+                    </Button>
+                  </div>
                 </div>
               </div>
 
@@ -410,75 +574,16 @@ export function OrdenesTab({
       </Dialog>
 
       {/* 2. Detail Dialog */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          {selectedOrder && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Detalle de Orden de Compra #{selectedOrder.id_compra}</DialogTitle>
-                <DialogDescription>
-                  Revisión de los productos solicitados y estado actual.
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="grid gap-4 py-2">
-                <div className="grid grid-cols-2 text-sm">
-                  <div>
-                    <span className="text-muted-foreground block text-xs">Proveedor</span>
-                    <span className="font-semibold">
-                      {suppliers.find(s => s.id_proveedor === selectedOrder.id_proveedor)?.prv_nombre || `ID: ${selectedOrder.id_proveedor}`}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground block text-xs">Fecha Emisión</span>
-                    <span className="font-semibold">
-                      {selectedOrder.oc_fecha ? new Date(selectedOrder.oc_fecha).toLocaleDateString() : ""}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="border rounded-lg mt-2 max-h-[250px] overflow-y-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Producto</TableHead>
-                        <TableHead>Cantidad</TableHead>
-                        <TableHead>Costo Unitario</TableHead>
-                        <TableHead className="text-right">Subtotal</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {selectedOrder.items?.map((item, idx) => {
-                        const variantName = variants.find(v => v.id_variante === item.id_variante)?.var_nombre || `Variante: ${item.id_variante}`;
-                        return (
-                          <TableRow key={idx}>
-                            <TableCell>{variantName}</TableCell>
-                            <TableCell>{item.pxo_cantidad}</TableCell>
-                            <TableCell>${Number(item.pxo_valor).toFixed(2)}</TableCell>
-                            <TableCell className="text-right font-medium">
-                              ${((item.pxo_subtotal) ? item.pxo_subtotal : (item.pxo_cantidad * item.pxo_valor)).toFixed(2)}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                <div className="flex flex-col items-end gap-1 text-sm font-semibold pr-2 mt-2">
-                  <div>Subtotal: <span className="text-muted-foreground">${Number(selectedOrder.oc_subtotal).toFixed(2)}</span></div>
-                  <div>IVA ({selectedOrder.oc_iva}%): <span className="text-muted-foreground">${(Number(selectedOrder.oc_total) - Number(selectedOrder.oc_subtotal)).toFixed(2)}</span></div>
-                  <div className="text-base font-bold text-primary border-t pt-1">Total: <span>${Number(selectedOrder.oc_total).toFixed(2)}</span></div>
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button onClick={() => setIsDetailOpen(false)}>Cerrar</Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      <CompraDetailModal
+        isOpen={isDetailOpen}
+        onOpenChange={setIsDetailOpen}
+        order={selectedOrder}
+        suppliers={suppliers}
+        variants={variants}
+        onUpdateOrderStatus={onUpdateOrderStatus}
+        onUpdateOrder={onUpdateOrder}
+        defaultEditMode={defaultEditMode}
+      />
     </div>
   );
 }

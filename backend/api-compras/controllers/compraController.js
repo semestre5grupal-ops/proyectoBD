@@ -47,10 +47,7 @@ const createCompra = async (req, res) => {
           });
         }
       } catch (err) {
-        return res.status(502).json({ 
-          success: false, 
-          error: `Error al validar variante ${id_variante} con el API de Inventario: ${err.message}` 
-        });
+        console.warn(`[WARNING] No se pudo validar la variante ${id_variante} en la API de Inventario (${URL_API_INVENTARIO}): ${err.message}. Continuando en modo fallback.`);
       }
     }
 
@@ -87,9 +84,57 @@ const updateCompraEstado = async (req, res) => {
   }
 };
 
+const updateCompra = async (req, res) => {
+  try {
+    const { id_proveedor, oc_fechaentrega, oc_subtotal, oc_iva, oc_total, detalles } = req.body;
+
+    if (!detalles || detalles.length === 0) {
+      return res.status(400).json({ success: false, error: 'La orden de compra debe contener al menos un producto.' });
+    }
+
+    // Validar variantes en api-inventario vía HTTP
+    for (const detail of detalles) {
+      const { id_variante } = detail;
+      try {
+        const checkRes = await fetch(`${URL_API_INVENTARIO}/api/variantes/${id_variante}`, {
+          headers: {
+            'Authorization': req.headers['authorization']
+          }
+        });
+        if (!checkRes.ok) {
+          return res.status(400).json({ 
+            success: false, 
+            error: `La variante de producto con ID ${id_variante} no es válida o no existe en Inventario.` 
+          });
+        }
+      } catch (err) {
+        console.warn(`[WARNING] No se pudo validar la variante ${id_variante} en la API de Inventario (${URL_API_INVENTARIO}): ${err.message}. Continuando en modo fallback.`);
+      }
+    }
+
+    const compraActualizada = await Compra.updateCompra(req.params.id, {
+      id_proveedor,
+      oc_fechaentrega,
+      oc_subtotal,
+      oc_iva,
+      oc_total,
+      detalles
+    });
+
+    if (!compraActualizada) {
+      return res.status(404).json({ success: false, message: 'Orden de compra no encontrada' });
+    }
+
+    res.status(200).json({ success: true, data: compraActualizada });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 module.exports = {
   getAllCompras,
   getCompra,
   createCompra,
-  updateCompraEstado
+  updateCompraEstado,
+  updateCompra
 };

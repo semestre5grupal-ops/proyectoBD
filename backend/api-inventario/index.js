@@ -14,6 +14,10 @@ app.use(express.json()); // Permite mapear cuerpos JSON entrantes
 // Enrutamiento de la API de Inventario
 app.use('/api/inventario', inventarioRoutes);
 
+// Enrutamiento segmentado de integraciones para el módulo de compras (sin alterar archivos base)
+const comprasIntegracionRoutes = require('./routes/comprasIntegracionRoutes');
+app.use('/api', comprasIntegracionRoutes);
+
 // Ruta de diagnóstico base
 app.get('/', (req, res) => {
     res.json({ modulo: "API Microservicio Inventario", estado: "Operativo en la Nube" });

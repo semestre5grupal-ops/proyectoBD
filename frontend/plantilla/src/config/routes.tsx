@@ -12,7 +12,8 @@ const Tasks = lazy(() => import('@/app/tasks/page'))
 const Chat = lazy(() => import('@/app/chat/page'))
 const Calendar = lazy(() => import('@/app/calendar/page'))
 const Users = lazy(() => import('@/app/users/page'))
-const Compras = lazy(() => import('@/app/compras/page'))
+const ComprasOrdenes = lazy(() => import('@/app/compras/ordenes/page'))
+const ComprasProveedores = lazy(() => import('@/app/compras/proveedores/page'))
 const FAQs = lazy(() => import('@/app/faqs/page'))
 const Pricing = lazy(() => import('@/app/pricing/page'))
 
@@ -104,7 +105,15 @@ export const routes: RouteConfig[] = [
   },
   {
     path: "/dashboard/compras",
-    element: <Compras />
+    element: <Navigate to="/dashboard/compras/ordenes" replace />
+  },
+  {
+    path: "/dashboard/compras/ordenes",
+    element: <ComprasOrdenes />
+  },
+  {
+    path: "/dashboard/compras/proveedores",
+    element: <ComprasProveedores />
   },
   {
     path: "/faqs",

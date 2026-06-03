@@ -1,6 +1,6 @@
 // API client service for Inventario microservice (api-inventario)
 
-const API_BASE_URL = import.meta.env.VITE_URL_API_INVENTARIO || "http://localhost:4000";
+const API_BASE_URL = import.meta.env.VITE_API_INVENTARIO || import.meta.env.VITE_URL_API_INVENTARIO || "http://localhost:4000";
 
 // Helper to get headers with the token
 const getHeaders = () => {
@@ -25,13 +25,19 @@ export interface Bodega {
   bod_codigo: string;
 }
 
-// Mock data to enable client-side selection since api-inventario doesn't have list endpoints
+// Mock data to enable client-side selection as fallback
 const MOCK_VARIANTES: Variante[] = [
-  { id_variante: 1, var_nombre: "Chocolate Barra Dark 70%", var_cod_barras: "78610001", var_precio_venta: 2.50 },
-  { id_variante: 2, var_nombre: "Chocolate Barra Milk 45%", var_cod_barras: "78610002", var_precio_venta: 2.25 },
-  { id_variante: 3, var_nombre: "Trufas de Avellana Caja", var_cod_barras: "78610003", var_precio_venta: 5.00 },
-  { id_variante: 4, var_nombre: "Chocolate Blanco con Frutilla", var_cod_barras: "78610004", var_precio_venta: 2.75 },
-  { id_variante: 5, var_nombre: "Cobertura de Chocolate Semiamargo (1kg)", var_cod_barras: "78610005", var_precio_venta: 12.00 }
+  { id_variante: 10, var_nombre: "Camiseta Roja S", var_cod_barras: "90000001", var_precio_venta: 15.00 },
+  { id_variante: 11, var_nombre: "Camiseta Roja M", var_cod_barras: "90000002", var_precio_venta: 15.00 },
+  { id_variante: 12, var_nombre: "Camiseta Roja L", var_cod_barras: "90000003", var_precio_venta: 15.00 },
+  { id_variante: 13, var_nombre: "Camiseta Azul S", var_cod_barras: "90000004", var_precio_venta: 15.00 },
+  { id_variante: 14, var_nombre: "Camiseta Azul M", var_cod_barras: "90000005", var_precio_venta: 15.00 },
+  { id_variante: 15, var_nombre: "Camiseta Azul L", var_cod_barras: "90000006", var_precio_venta: 15.00 },
+  { id_variante: 16, var_nombre: "Pantalón Jean Negro 30", var_cod_barras: "90000007", var_precio_venta: 25.00 },
+  { id_variante: 17, var_nombre: "Pantalón Jean Negro 32", var_cod_barras: "90000008", var_precio_venta: 25.00 },
+  { id_variante: 18, var_nombre: "Pantalón Jean Negro 34", var_cod_barras: "90000009", var_precio_venta: 25.00 },
+  { id_variante: 19, var_nombre: "Chaqueta Impermeable Verde M", var_cod_barras: "90000010", var_precio_venta: 45.00 },
+  { id_variante: 20, var_nombre: "Chaqueta Impermeable Verde L", var_cod_barras: "90000011", var_precio_venta: 45.00 }
 ];
 
 const MOCK_BODEGAS: Bodega[] = [
@@ -42,22 +48,30 @@ const MOCK_BODEGAS: Bodega[] = [
 
 // Fetch active variants list
 export const getVariantes = async (): Promise<Variante[]> => {
-  // In production, once the backend endpoint is added, use:
-  // const res = await fetch(`${API_BASE_URL}/api/inventario/variantes`, { headers: getHeaders() });
-  // const json = await res.json();
-  // if (!res.ok) throw new Error(json.error || "Failed to fetch variants");
-  // return json.data;
-  
-  return Promise.resolve(MOCK_VARIANTES);
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/inventario/variantes`, { headers: getHeaders() });
+    const json = await res.json();
+    if (res.ok && json.success && Array.isArray(json.data)) {
+      return json.data;
+    }
+  } catch (error) {
+    console.warn("Failed to fetch variants from API, falling back to mock data", error);
+  }
+  return MOCK_VARIANTES;
 };
 
 // Fetch warehouses list
 export const getBodegas = async (): Promise<Bodega[]> => {
-  // In production, once the backend endpoint is added, use:
-  // const res = await fetch(`${API_BASE_URL}/api/inventario/bodegas`, { headers: getHeaders() });
-  // ...
-  
-  return Promise.resolve(MOCK_BODEGAS);
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/inventario/bodegas`, { headers: getHeaders() });
+    const json = await res.json();
+    if (res.ok && json.success && Array.isArray(json.data)) {
+      return json.data;
+    }
+  } catch (error) {
+    console.warn("Failed to fetch warehouses from API, falling back to mock data", error);
+  }
+  return MOCK_BODEGAS;
 };
 
 // Get current stock for a specific variant

@@ -9,6 +9,7 @@ router.use(verifyToken);
 router.get('/', compraController.getAllCompras);
 router.get('/:id', compraController.getCompra);
 router.post('/', compraController.createCompra);
+router.put('/:id', compraController.updateCompra);
 router.put('/:id/estado', compraController.updateCompraEstado);
 
 module.exports = router;
