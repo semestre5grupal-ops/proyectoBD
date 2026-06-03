@@ -83,8 +83,11 @@ export default function UsuariosPage() {
 
     try {
       const data: Partial<Usuario> = {
+        ...(editingUsuario || {}),
         usu_nombre: usuNombre,
-        id_rol: parseInt(idRol)
+        id_rol: parseInt(idRol),
+        usu_estado: editingUsuario?.usu_estado || 'ACTIVO',
+        id_empleado: editingUsuario?.id_empleado || null
       }
       // Solo enviar contraseña si se digitó una nueva
       if (usuContra.trim()) {
@@ -167,7 +170,6 @@ export default function UsuariosPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[100px]">ID</TableHead>
                   <TableHead>Nombre de Usuario</TableHead>
                   <TableHead>Rol Asignado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -183,7 +185,6 @@ export default function UsuariosPage() {
                 ) : (
                   currentUsers.map((usuario) => (
                     <TableRow key={usuario.id_usuario}>
-                      <TableCell className="font-medium">{usuario.id_usuario}</TableCell>
                       <TableCell>{usuario.usu_nombre}</TableCell>
                       <TableCell>
                         <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
