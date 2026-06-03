@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Recepcion, Compra, Proveedor, Proxrec } from "../services/compras-service";
+import { getRecepcionDetails } from "../services/compras-service";
 import type { Bodega, Variante } from "../services/inventario-service";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -121,8 +122,19 @@ export function RecepcionesTab({
     }
   };
 
-  const handleOpenDetail = (reception: Recepcion) => {
-    setSelectedReception(reception);
+  const handleOpenDetail = async (reception: Recepcion) => {
+    if (reception.id_recepcion) {
+      try {
+        const fullReception = await getRecepcionDetails(reception.id_recepcion);
+        setSelectedReception(fullReception);
+      } catch (e: any) {
+        console.error("Error loading reception details", e);
+        toast.error("No se pudo cargar el detalle de la recepción");
+        setSelectedReception(reception);
+      }
+    } else {
+      setSelectedReception(reception);
+    }
     setIsDetailOpen(true);
   };
 
@@ -166,7 +178,7 @@ export function RecepcionesTab({
         <CardHeader>
           <CardTitle>Recepciones Físicas de Mercadería</CardTitle>
           <CardDescription>
-            Control de ingresos de chocolate a bodegas vinculados a órdenes de compra aprobadas.
+            Control de ingresos de mercancía a bodegas vinculados a órdenes de compra aprobadas.
           </CardDescription>
         </CardHeader>
         <CardContent>

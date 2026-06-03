@@ -12,6 +12,51 @@ import { toast } from "sonner";
 import { Edit2, Check, X, Plus, Trash2, ShieldAlert } from "lucide-react";
 import { getRolCompras } from "../utils/rbac";
 
+interface VariantAttributes {
+  id_variante: number;
+  productName: string;
+  colorOrFlavor: string;
+  sizeOrWeight: string;
+}
+
+const parseVariantAttributes = (v: { id_variante: number; var_nombre: string; var_precio_venta: number }): VariantAttributes => {
+  const name = v.var_nombre;
+  const nameLower = name.toLowerCase();
+  let productName = name;
+  let colorOrFlavor = "Estándar";
+  let sizeOrWeight = "Única";
+
+  const colors = ["rojo", "roja", "azul", "negro", "negra", "blanco", "blanca", "amarillo", "verde", "gris", "marrón", "cafe", "rosa", "lila"];
+  const sizes = ["xs", "s", "m", "l", "xl", "xxl", "30", "32", "34", "36", "38", "40", "unidad"];
+
+  for (const c of colors) {
+    if (nameLower.includes(c)) {
+      colorOrFlavor = c.charAt(0).toUpperCase() + c.slice(1);
+      productName = productName.replace(new RegExp(c, "gi"), "").trim();
+      break;
+    }
+  }
+
+  for (const s of sizes) {
+    const regex = new RegExp(`\\b${s}\\b|${s}`, "i");
+    if (regex.test(nameLower)) {
+      sizeOrWeight = s.toUpperCase();
+      productName = productName.replace(regex, "").trim();
+      break;
+    }
+  }
+
+  productName = productName.replace(/\s+/g, " ").trim();
+  if (!productName) productName = name;
+
+  return {
+    id_variante: v.id_variante,
+    productName,
+    colorOrFlavor,
+    sizeOrWeight
+  };
+};
+
 interface CompraDetailModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -20,6 +65,7 @@ interface CompraDetailModalProps {
   variants: Variante[];
   onUpdateOrderStatus: (id: number, status: 'ABI' | 'APR' | 'ANU') => Promise<boolean>;
   onUpdateOrder: (id: number, order: Compra) => Promise<boolean>;
+  defaultEditMode?: boolean;
 }
 
 export function CompraDetailModal({
@@ -29,7 +75,8 @@ export function CompraDetailModal({
   suppliers,
   variants,
   onUpdateOrderStatus,
-  onUpdateOrder
+  onUpdateOrder,
+  defaultEditMode = false
 }: CompraDetailModalProps) {
   const [role, setRole] = useState<'JEFE' | 'AUX' | 'OPER' | 'NONE'>('NONE');
   const [isEditing, setIsEditing] = useState(false);
@@ -45,11 +92,86 @@ export function CompraDetailModal({
   const [quantity, setQuantity] = useState(1);
   const [unitCost, setUnitCost] = useState(0);
 
+  // Dynamic dropdown state selectors
+  const [selectedProduct, setSelectedProduct] = useState("");
+  const [selectedColor, setSelectedColor] = useState("");
+  const [selectedSize, setSelectedSize] = useState("");
+
+  // Parse all variants to get attributes
+  const parsedVariants = variants.map(v => parseVariantAttributes(v));
+
+  // 1. Unique Products list
+  const uniqueProducts = Array.from(new Set(parsedVariants.map(pv => pv.productName))).sort();
+
+  // 2. Colors list based on selected product
+  const availableColors = selectedProduct
+    ? Array.from(new Set(parsedVariants.filter(pv => pv.productName === selectedProduct).map(pv => pv.colorOrFlavor))).sort()
+    : [];
+
+  // 3. Sizes list based on selected product & color
+  const availableSizes = selectedProduct && selectedColor
+    ? Array.from(
+        new Set(
+          parsedVariants
+            .filter(pv => pv.productName === selectedProduct && pv.colorOrFlavor === selectedColor)
+            .map(pv => pv.sizeOrWeight)
+        )
+      ).sort()
+    : [];
+
+  // Resolve id_variante from options selection
+  useEffect(() => {
+    if (selectedProduct && selectedColor && selectedSize) {
+      const match = parsedVariants.find(
+        pv =>
+          pv.productName === selectedProduct &&
+          pv.colorOrFlavor === selectedColor &&
+          pv.sizeOrWeight === selectedSize
+      );
+      if (match) {
+        setSelectedVariantId(match.id_variante.toString());
+        const variant = variants.find(v => v.id_variante === match.id_variante);
+        if (variant) {
+          setUnitCost(variant.var_precio_venta * 0.6);
+        }
+      } else {
+        setSelectedVariantId("");
+      }
+    } else {
+      setSelectedVariantId("");
+    }
+  }, [selectedProduct, selectedColor, selectedSize, variants]);
+
+  // Auto-select single options
+  useEffect(() => {
+    if (selectedProduct) {
+      if (availableColors.length === 1 && selectedColor !== availableColors[0]) {
+        setSelectedColor(availableColors[0]);
+      }
+    }
+  }, [selectedProduct, availableColors, selectedColor]);
+
+  useEffect(() => {
+    if (selectedProduct && selectedColor) {
+      if (availableSizes.length === 1 && selectedSize !== availableSizes[0]) {
+        setSelectedSize(availableSizes[0]);
+      }
+    }
+  }, [selectedProduct, selectedColor, availableSizes, selectedSize]);
+
+  // Reset selectors on edit toggle
+  useEffect(() => {
+    setSelectedProduct("");
+    setSelectedColor("");
+    setSelectedSize("");
+    setSelectedVariantId("");
+  }, [isEditing]);
+
   // Initialize roles and states
   useEffect(() => {
     if (isOpen) {
       setRole(getRolCompras());
-      setIsEditing(false);
+      setIsEditing(defaultEditMode);
       if (order) {
         setProveedorId(order.id_proveedor.toString());
         setFechaEntrega(order.oc_fechaentrega ? order.oc_fechaentrega.split('T')[0] : "");
@@ -57,17 +179,9 @@ export function CompraDetailModal({
         setItems(order.items || []);
       }
     }
-  }, [isOpen, order]);
+  }, [isOpen, order, defaultEditMode]);
 
   if (!order) return null;
-
-  const handleVariantChange = (id: string) => {
-    setSelectedVariantId(id);
-    const variant = variants.find(v => v.id_variante === Number(id));
-    if (variant) {
-      setUnitCost(variant.var_precio_venta * 0.6); 
-    }
-  };
 
   const handleAddItem = () => {
     if (!selectedVariantId || quantity <= 0 || unitCost <= 0) return;
@@ -86,6 +200,9 @@ export function CompraDetailModal({
     };
 
     setItems([...items, newItem]);
+    setSelectedProduct("");
+    setSelectedColor("");
+    setSelectedSize("");
     setSelectedVariantId("");
     setQuantity(1);
     setUnitCost(0);
@@ -252,23 +369,51 @@ export function CompraDetailModal({
           {isEditing && (
             <div className="border rounded-lg p-4 bg-muted/30">
               <h4 className="text-sm font-semibold mb-3">Agregar Item al Detalle</h4>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                <div className="flex flex-col gap-2 md:col-span-2">
-                  <Label htmlFor="edit_variant_opt">Variante de Chocolate</Label>
-                  <Select value={selectedVariantId} onValueChange={handleVariantChange}>
-                    <SelectTrigger id="edit_variant_opt">
-                      <SelectValue placeholder="Seleccione variante" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="edit_product_sel">Producto</Label>
+                  <Select value={selectedProduct} onValueChange={(val) => { setSelectedProduct(val); setSelectedColor(""); setSelectedSize(""); }}>
+                    <SelectTrigger id="edit_product_sel">
+                      <SelectValue placeholder="Seleccione producto" />
                     </SelectTrigger>
                     <SelectContent>
-                      {variants.map(v => (
-                        <SelectItem key={v.id_variante} value={v.id_variante.toString()}>
-                          {v.var_nombre} (${v.var_precio_venta.toFixed(2)})
-                        </SelectItem>
+                      {uniqueProducts.map(p => (
+                        <SelectItem key={p} value={p}>{p}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="edit_color_sel">Color</Label>
+                  <Select value={selectedColor} onValueChange={(val) => { setSelectedColor(val); setSelectedSize(""); }} disabled={!selectedProduct}>
+                    <SelectTrigger id="edit_color_sel">
+                      <SelectValue placeholder={selectedProduct ? "Seleccione color" : "Primero elija producto"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableColors.map(c => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="edit_size_sel">Talla</Label>
+                  <Select value={selectedSize} onValueChange={setSelectedSize} disabled={!selectedColor}>
+                    <SelectTrigger id="edit_size_sel">
+                      <SelectValue placeholder={selectedColor ? "Seleccione talla" : "Primero elija color"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableSizes.map(s => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 items-end">
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="edit_qty_opt">Cantidad</Label>
                   <Input
@@ -291,11 +436,18 @@ export function CompraDetailModal({
                     onChange={(e) => setUnitCost(Math.max(0, Number(e.target.value)))}
                   />
                 </div>
-              </div>
-              <div className="flex justify-end mt-4">
-                <Button type="button" variant="outline" size="sm" onClick={handleAddItem}>
-                  Agregar Item
-                </Button>
+
+                <div>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={handleAddItem}
+                    disabled={!selectedVariantId}
+                  >
+                    Agregar Item
+                  </Button>
+                </div>
               </div>
             </div>
           )}

@@ -149,25 +149,41 @@ export const getCompras = async (): Promise<Compra[]> => {
   const res = await fetch(`${API_BASE_URL}/api/compras`, { headers: getHeaders() });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || "Failed to fetch purchase orders");
-  return json.success ? json.data : [];
+  if (json.success && Array.isArray(json.data)) {
+    return json.data.map((c: any) => ({
+      ...c,
+      items: c.items || c.detalles || []
+    }));
+  }
+  return [];
 };
 
 export const getCompraDetails = async (id: number): Promise<Compra> => {
   const res = await fetch(`${API_BASE_URL}/api/compras/${id}`, { headers: getHeaders() });
   const json = await res.json();
   if (!res.ok || !json.success) throw new Error(json.error || "Failed to fetch purchase order details");
-  return json.data;
+  return {
+    ...json.data,
+    items: json.data.items || json.data.detalles || []
+  };
 };
 
 export const createCompra = async (compra: Compra): Promise<Compra> => {
+  const payload = {
+    ...compra,
+    detalles: compra.items
+  };
   const res = await fetch(`${API_BASE_URL}/api/compras`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify(compra)
+    body: JSON.stringify(payload)
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || "Failed to create purchase order");
-  return json.data;
+  return {
+    ...json.data,
+    items: json.data.items || json.data.detalles || []
+  };
 };
 
 export const updateCompraEstado = async (id: number, estado: 'ABI' | 'APR' | 'ANU'): Promise<any> => {
@@ -182,14 +198,21 @@ export const updateCompraEstado = async (id: number, estado: 'ABI' | 'APR' | 'AN
 };
 
 export const updateCompra = async (id: number, compra: Compra): Promise<Compra> => {
+  const payload = {
+    ...compra,
+    detalles: compra.items
+  };
   const res = await fetch(`${API_BASE_URL}/api/compras/${id}`, {
     method: "PUT",
     headers: getHeaders(),
-    body: JSON.stringify(compra)
+    body: JSON.stringify(payload)
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || "Failed to update purchase order");
-  return json.data;
+  return {
+    ...json.data,
+    items: json.data.items || json.data.detalles || []
+  };
 };
 
 // 4. Recepciones API
@@ -197,18 +220,41 @@ export const getRecepciones = async (): Promise<Recepcion[]> => {
   const res = await fetch(`${API_BASE_URL}/api/recepciones`, { headers: getHeaders() });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || "Failed to fetch receptions");
-  return json.success ? json.data : [];
+  if (json.success && Array.isArray(json.data)) {
+    return json.data.map((r: any) => ({
+      ...r,
+      items: r.items || r.detalles || []
+    }));
+  }
+  return [];
+};
+
+export const getRecepcionDetails = async (id: number): Promise<Recepcion> => {
+  const res = await fetch(`${API_BASE_URL}/api/recepciones/${id}`, { headers: getHeaders() });
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || "Failed to fetch reception details");
+  return {
+    ...json.data,
+    items: json.data.items || json.data.detalles || []
+  };
 };
 
 export const createRecepcion = async (recepcion: Recepcion): Promise<Recepcion> => {
+  const payload = {
+    ...recepcion,
+    detalles: recepcion.items
+  };
   const res = await fetch(`${API_BASE_URL}/api/recepciones`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify(recepcion)
+    body: JSON.stringify(payload)
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || "Failed to register reception");
-  return json.data;
+  return {
+    ...json.data,
+    items: json.data.items || json.data.detalles || []
+  };
 };
 
 export const aprobarRecepcion = async (id: number): Promise<any> => {
@@ -226,18 +272,41 @@ export const getDevoluciones = async (): Promise<Devolucion[]> => {
   const res = await fetch(`${API_BASE_URL}/api/devoluciones-compra`, { headers: getHeaders() });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || "Failed to fetch returns");
-  return json.success ? json.data : [];
+  if (json.success && Array.isArray(json.data)) {
+    return json.data.map((d: any) => ({
+      ...d,
+      items: d.items || d.detalles || []
+    }));
+  }
+  return [];
+};
+
+export const getDevolucionDetails = async (id: number): Promise<Devolucion> => {
+  const res = await fetch(`${API_BASE_URL}/api/devoluciones-compra/${id}`, { headers: getHeaders() });
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || "Failed to fetch return details");
+  return {
+    ...json.data,
+    items: json.data.items || json.data.detalles || []
+  };
 };
 
 export const createDevolucion = async (devolucion: Devolucion): Promise<Devolucion> => {
+  const payload = {
+    ...devolucion,
+    detalles: devolucion.items
+  };
   const res = await fetch(`${API_BASE_URL}/api/devoluciones-compra`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify(devolucion)
+    body: JSON.stringify(payload)
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error || "Failed to register return");
-  return json.data;
+  return {
+    ...json.data,
+    items: json.data.items || json.data.detalles || []
+  };
 };
 
 export const aprobarDevolucion = async (id: number): Promise<any> => {

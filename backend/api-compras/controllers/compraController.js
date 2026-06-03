@@ -47,10 +47,7 @@ const createCompra = async (req, res) => {
           });
         }
       } catch (err) {
-        return res.status(502).json({ 
-          success: false, 
-          error: `Error al validar variante ${id_variante} con el API de Inventario: ${err.message}` 
-        });
+        console.warn(`[WARNING] No se pudo validar la variante ${id_variante} en la API de Inventario (${URL_API_INVENTARIO}): ${err.message}. Continuando en modo fallback.`);
       }
     }
 
@@ -111,10 +108,7 @@ const updateCompra = async (req, res) => {
           });
         }
       } catch (err) {
-        return res.status(502).json({ 
-          success: false, 
-          error: `Error al validar variante ${id_variante} con el API de Inventario: ${err.message}` 
-        });
+        console.warn(`[WARNING] No se pudo validar la variante ${id_variante} en la API de Inventario (${URL_API_INVENTARIO}): ${err.message}. Continuando en modo fallback.`);
       }
     }
 
