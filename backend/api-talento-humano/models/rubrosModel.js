@@ -29,7 +29,7 @@ const updateRubros = async (id, data) => {
 };
 
 const deleteRubros = async (id) => {
-  const result = await pool.query('DELETE FROM rubros WHERE id_rubros = $1 RETURNING *', [id]);
+  const result = await pool.query("UPDATE rubros SET rub_estado = 'INC' WHERE id_rubros = $1 RETURNING *", [id]);
   return result.rows[0];
 };
 

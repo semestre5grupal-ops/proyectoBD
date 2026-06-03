@@ -2,12 +2,16 @@ import { apiFetch } from './api';
 
 export interface Empleado {
   id_empleado?: number;
-  emp_nombre: string;
-  emp_apellido: string;
   emp_cedula: string;
-  emp_telefono: string;
+  emp_nom1: string;
+  emp_nom2: string;
+  emp_ap1: string;
+  emp_ap2: string;
+  emp_fechanacimiento: string;
+  emp_sexo: string;
   emp_direccion: string;
-  emp_fecha_contratacion: string;
+  emp_telefono: string;
+  emp_email: string;
   id_departamento?: number | null;
 }
 

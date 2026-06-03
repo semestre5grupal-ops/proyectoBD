@@ -9,10 +9,10 @@ export interface Departamento {
 
 export const departamentoService = {
   getAll: async () => {
+  getAll: async (): Promise<Departamento[]> => {
     const response = await apiFetch('/departamento');
     if (!response.ok) throw new Error('Error al obtener departamentos');
-    const json = await response.json();
-    return Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+    return await response.json();
   },
 
   getById: async (id: number) => {
@@ -22,10 +22,10 @@ export const departamentoService = {
     return json.data || json;
   },
 
-  create: async (data: Partial<Departamento>) => {
+  create: async (departamento: Departamento): Promise<Departamento> => {
     const response = await apiFetch('/departamento', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(departamento),
     });
     if (!response.ok) {
       const errJson = await response.json().catch(() => ({}));
@@ -35,10 +35,10 @@ export const departamentoService = {
     return json.data || json;
   },
 
-  update: async (id: number, data: Partial<Departamento>) => {
+  update: async (id: number, departamento: Departamento): Promise<Departamento> => {
     const response = await apiFetch(`/departamento/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(data),
+      body: JSON.stringify(departamento),
     });
     if (!response.ok) {
       const errJson = await response.json().catch(() => ({}));
@@ -48,7 +48,7 @@ export const departamentoService = {
     return json.data || json;
   },
 
-  delete: async (id: number) => {
+  delete: async (id: number): Promise<void> => {
     const response = await apiFetch(`/departamento/${id}`, {
       method: 'DELETE',
     });
