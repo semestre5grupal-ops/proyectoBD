@@ -43,10 +43,10 @@ export default function ComprasPage() {
         const parts = token.split('.');
         if (parts.length === 3) {
           const payload = JSON.parse(atob(parts[1]));
-          // Assume role ID 1 is Administrator in the system
-          // If a token is present, we enforce role === 1 check
+          // Assume role ID 1 is Administrator in the system, or the user is specifically 'admin'
+          // If a token is present, we enforce role === 1 or username === 'admin' check
           const userRole = Number(payload.id_rol);
-          setIsAdmin(userRole === 1);
+          setIsAdmin(userRole === 1 || payload.usu_nombre === 'admin');
           setUserName(payload.usu_nombre || "Usuario");
         }
       } catch (e) {
