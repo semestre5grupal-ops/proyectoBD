@@ -11,13 +11,15 @@ export const usuarioService = {
   getAll: async () => {
     const response = await apiFetch('/usuarios');
     if (!response.ok) throw new Error('Error al obtener usuarios');
-    return await response.json();
+    const json = await response.json();
+    return json.data || json;
   },
 
   getById: async (id: number) => {
     const response = await apiFetch(`/usuarios/${id}`);
     if (!response.ok) throw new Error('Error al obtener el usuario');
-    return await response.json();
+    const json = await response.json();
+    return json.data || json;
   },
 
   create: async (data: Partial<Usuario>) => {
@@ -26,7 +28,8 @@ export const usuarioService = {
       body: JSON.stringify(data),
     });
     if (!response.ok) throw new Error('Error al crear usuario');
-    return await response.json();
+    const json = await response.json();
+    return json.data || json;
   },
 
   update: async (id: number, data: Partial<Usuario>) => {
@@ -35,7 +38,8 @@ export const usuarioService = {
       body: JSON.stringify(data),
     });
     if (!response.ok) throw new Error('Error al actualizar usuario');
-    return await response.json();
+    const json = await response.json();
+    return json.data || json;
   },
 
   delete: async (id: number) => {
@@ -43,6 +47,7 @@ export const usuarioService = {
       method: 'DELETE',
     });
     if (!response.ok) throw new Error('Error al eliminar usuario');
-    return await response.json();
+    const json = await response.json();
+    return json.data || json;
   },
 };

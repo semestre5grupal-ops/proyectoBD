@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { BaseLayout } from "@/components/layouts/base-layout"
-import { usuarioService, Usuario } from "@/services/usuarioService"
-import { rolService, Rol } from "@/services/rolService"
+import { usuarioService, type Usuario } from "@/services/usuarioService"
+import { rolService, type Rol } from "@/services/rolService"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -17,6 +17,10 @@ export default function UsuariosPage() {
   const [roles, setRoles] = useState<Rol[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Paginación
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 20
 
   // Estado del modal
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -38,8 +42,9 @@ export default function UsuariosPage() {
         usuarioService.getAll(),
         rolService.getAll()
       ])
-      setUsuarios(usersData)
-      setRoles(rolesData)
+      setUsuarios(Array.isArray(usersData) ? usersData : [])
+      setRoles(Array.isArray(rolesData) ? rolesData : [])
+      setCurrentPage(1) // Reset to first page on reload
     } catch (err: any) {
       setError(err.message || "Error al cargar datos")
     } finally {
@@ -118,7 +123,22 @@ export default function UsuariosPage() {
 
   const getRoleName = (rolId: number) => {
     const rol = roles.find(r => r.id_rol === rolId)
-    return rol ? rol.rol_nombre : "Desconocido"
+    return rol ? rol.nombre_rol : "Desconocido"
+  }
+
+  // Cálculos de paginación
+  const totalPages = Math.ceil(usuarios.length / ITEMS_PER_PAGE)
+  const currentUsers = usuarios.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  )
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) setCurrentPage(currentPage - 1)
+  }
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(currentPage + 1)
   }
 
   return (
@@ -154,14 +174,14 @@ export default function UsuariosPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {usuarios.length === 0 ? (
+                {currentUsers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
                       No hay usuarios registrados.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  usuarios.map((usuario) => (
+                  currentUsers.map((usuario) => (
                     <TableRow key={usuario.id_usuario}>
                       <TableCell className="font-medium">{usuario.id_usuario}</TableCell>
                       <TableCell>{usuario.usu_nombre}</TableCell>
@@ -183,6 +203,33 @@ export default function UsuariosPage() {
                 )}
               </TableBody>
             </Table>
+            
+            {/* Controles de Paginación */}
+            {usuarios.length > ITEMS_PER_PAGE && (
+              <div className="flex items-center justify-between px-4 py-3 border-t">
+                <div className="text-sm text-muted-foreground">
+                  Mostrando del {(currentPage - 1) * ITEMS_PER_PAGE + 1} al {Math.min(currentPage * ITEMS_PER_PAGE, usuarios.length)} de {usuarios.length} usuarios
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handlePreviousPage}
+                    disabled={currentPage === 1}
+                  >
+                    Anterior
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleNextPage}
+                    disabled={currentPage === totalPages}
+                  >
+                    Siguiente
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -224,7 +271,7 @@ export default function UsuariosPage() {
                 <SelectContent>
                   {roles.map(rol => (
                     <SelectItem key={rol.id_rol} value={rol.id_rol!.toString()}>
-                      {rol.rol_nombre}
+                      {rol.nombre_rol}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { BaseLayout } from "@/components/layouts/base-layout"
-import { rolService, Rol } from "@/services/rolService"
+import { rolService, type Rol } from "@/services/rolService"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -28,7 +28,7 @@ export default function RolesPage() {
     try {
       setLoading(true)
       const data = await rolService.getAll()
-      setRoles(data)
+      setRoles(Array.isArray(data) ? data : [])
     } catch (err: any) {
       setError(err.message || "Error al cargar roles")
     } finally {
@@ -39,7 +39,7 @@ export default function RolesPage() {
   const handleOpenModal = (rol?: Rol) => {
     if (rol) {
       setEditingRol(rol)
-      setRolNombre(rol.rol_nombre)
+      setRolNombre(rol.nombre_rol)
     } else {
       setEditingRol(null)
       setRolNombre("")
@@ -58,9 +58,9 @@ export default function RolesPage() {
 
     try {
       if (editingRol && editingRol.id_rol) {
-        await rolService.update(editingRol.id_rol, { rol_nombre: rolNombre })
+        await rolService.update(editingRol.id_rol, { nombre_rol: rolNombre })
       } else {
-        await rolService.create({ rol_nombre: rolNombre })
+        await rolService.create({ nombre_rol: rolNombre })
       }
       handleCloseModal()
       fetchRoles()
@@ -122,7 +122,7 @@ export default function RolesPage() {
                   roles.map((rol) => (
                     <TableRow key={rol.id_rol}>
                       <TableCell className="font-medium">{rol.id_rol}</TableCell>
-                      <TableCell>{rol.rol_nombre}</TableCell>
+                      <TableCell>{rol.nombre_rol}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => handleOpenModal(rol)}>
                           <Edit2 size={16} className="text-blue-500" />

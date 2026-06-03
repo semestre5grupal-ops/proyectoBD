@@ -68,6 +68,21 @@ const data = {
         // Gabriel — Ventas: agregar aquí cuando esté listo
         // Liz — Compras: agregar aquí cuando esté listo
         // Alejandro — Talento Humano: agregar aquí cuando esté listo
+        {
+          title: "Ajustes (Alejandro)",
+          url: "#",
+          icon: Settings,
+          items: [
+            {
+              title: "Gestión de Usuarios",
+              url: "/settings/usuarios",
+            },
+            {
+              title: "Gestión de Roles",
+              url: "/settings/roles",
+            },
+          ],
+        },
       ],
     },
     {
@@ -192,14 +207,6 @@ const data = {
             {
               title: "User Settings",
               url: "/settings/user",
-            },
-            {
-              title: "Gestión de Usuarios",
-              url: "/settings/usuarios",
-            },
-            {
-              title: "Gestión de Roles",
-              url: "/settings/roles",
             },
             {
               title: "Account Settings",
