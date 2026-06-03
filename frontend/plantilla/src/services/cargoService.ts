@@ -10,7 +10,6 @@ export interface Cargo {
 }
 
 export const cargoService = {
-  getAll: async () => {
   getAll: async (): Promise<Cargo[]> => {
     const response = await apiFetch('/cargo');
     if (!response.ok) throw new Error('Error al obtener cargos');
