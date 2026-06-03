@@ -37,6 +37,7 @@ import {
   descontarStock,
   consultarStock,
   sincronizarCloud,
+  crearNotificacionTarea,
 } from '@/services/inventarioService';
 import {
   SYSTEM_PROMPTS,
@@ -198,6 +199,8 @@ function parseAgentResponse(
     estado: 'pendiente',
     timestamp,
     rol_origen: rolActivo,
+    // Propagar rol_destino del JSON de Ollama si existe
+    rol_destino: (parsed.rol_destino as RolInventario | undefined) ?? undefined,
     instruccion_original,
   };
 }
@@ -521,7 +524,6 @@ export function useAgent(): UseAgentState & UseAgentActions {
       }
 
       // ══ Regla de oro: CREAR_PRODUCTO y AUTORIZAR_AJUSTE son SIEMPRE confirmación requerida ══
-      // Aunque Ollama devuelva confirmacion_requerida: false por error, lo forzamos a true.
       const accionesQueRequierenConfirmacion: AccionInventario[] = [
         'CREAR_PRODUCTO', 'AUTORIZAR_AJUSTE', 'DAR_DE_BAJA', 'SINCRONIZAR',
       ];
@@ -529,18 +531,43 @@ export function useAgent(): UseAgentState & UseAgentActions {
         tarea.confirmacion_requerida ||
         accionesQueRequierenConfirmacion.includes(tarea.accion);
 
-      // 7b. Si requiere confirmación → reemplazar la burbuja de texto por un TaskCard
-      //     y registrar en pendingTaskRef para el control de voz.
-      if (confirmacionForzada) {
+      // ══ FLUJO DE DELEGACIÓN: rol_destino !== rolActivo ══════════════════════════════
+      // Si la tarea va dirigida a otro rol, persistir en Supabase vía POST /tareas
+      // y mostrar solo un mensaje informativo (sin botones de Confirmar).
+      if (tarea.rol_destino && tarea.rol_destino !== rolActivo) {
+        // a) Persistir la notificación en el backend (fire-and-forget amigable)
+        crearNotificacionTarea({
+          accion: tarea.accion,
+          mensaje_usuario: tarea.mensaje_usuario,
+          rol_origen: rolActivo,
+          rol_destino: tarea.rol_destino,
+          payload_json: tarea.payload as Record<string, unknown>,
+        }).catch((err: unknown) => {
+          console.warn('[useAgent] No se pudo persistir la tarea delegada:', err);
+        });
+
+        // b) Reemplazar la burbuja de streaming con mensaje informativo (sin TaskCard)
+        const mensajeDelegacion = 'Entendido, he registrado la tarea pendiente para el equipo correspondiente.';
+        setMensajes(prev =>
+          prev.map(m =>
+            m.id === thinkingId
+              ? { ...m, content: `📤 ${tarea.mensaje_usuario}\n\nℹ️ ${mensajeDelegacion}` }
+              : m
+          )
+        );
+
+        // c) Leer en voz alta la confirmación de delegación
+        emitirVoz(mensajeDelegacion);
+
+      } else if (confirmacionForzada) {
+        // 7b. Requiere confirmación del usuario actual → TaskCard
         const tareaConFlag: TareaInventario = { ...tarea, confirmacion_requerida: true };
         setMensajes(prev =>
           prev.map(m =>
             m.id === thinkingId ? crearMensajeTarea(tareaConFlag) : m
           )
         );
-        // Registrar la tarea como pendiente para que toggleVoz la detecte
         pendingTaskRef.current = tareaConFlag;
-        // 🔊 Leer el mensaje de la TaskCard en voz alta
         emitirVoz(tarea.mensaje_usuario);
       } else {
         // 7c. Sin confirmación (ej. CONSULTAR) → ejecutar directamente
@@ -549,7 +576,6 @@ export function useAgent(): UseAgentState & UseAgentActions {
             m.id === thinkingId ? crearMensajeTarea(tarea) : m
           )
         );
-        // 🔊 Leer el mensaje de la TaskCard en voz alta
         emitirVoz(tarea.mensaje_usuario);
         await ejecutarTarea(tarea);
       }

@@ -187,8 +187,8 @@ export default function ChatAgentePage() {
     }
   }, [agent.mensajes.length])
 
-  // ── Rutina de bienvenida asíncrona — OPERATIVO_INVENTARIO ─────────────────
-  // Se ejecuta UNA sola vez al montar. Si el rol es OPERATIVO_INVENTARIO,
+  // ── Rutina de bienvenida asíncrona — JEFE_INVENTARIO y OPERATIVO_INVENTARIO ──
+  // Se ejecuta UNA sola vez al montar. Si el rol es JEFE u OPERATIVO,
   // consulta las tareas pendientes y anuncia el resultado por voz.
   const bienvenidaSentRef = useRef(false)
   useEffect(() => {
@@ -208,33 +208,50 @@ export default function ChatAgentePage() {
       return // Token malformado — ignorar
     }
 
-    // 2. Verificar rol OPERATIVO_INVENTARIO
+    // 2. Verificar que el rol sea JEFE (8) u OPERATIVO (10)
     const rol = mapearRolJWT(payload)
-    if (rol !== "OPERATIVO_INVENTARIO") return
+    if (rol !== "JEFE_INVENTARIO" && rol !== "OPERATIVO_INVENTARIO") return
 
-    const nombreUsuario = payload.usu_nombre ?? "Paul"
+    const nombreUsuario = payload.usu_nombre ?? "equipo"
     const apiBase = (import.meta.env.VITE_API_INVENTARIO as string | undefined) ?? "http://localhost:4000"
 
-    // 3. Fetch al endpoint de tareas pendientes
+    // 3. Fetch al endpoint de tareas pendientes (filtrado por rol_destino en el backend)
     fetch(`${apiBase}/api/inventario/tareas/pendientes`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => (res.ok ? res.json() : null))
-      .then((json: { success: boolean; total: number } | null) => {
+      .then((json: { success: boolean; total: number; data?: Array<{ mensaje_usuario?: string; accion?: string }> } | null) => {
         if (!json?.success || json.total === 0) return
 
         const n = json.total
-        const mensajeBienvenida =
-          `Buenos días ${nombreUsuario}. Tienes ${n} mensaje${n === 1 ? "" : "s"} pendiente${n === 1 ? "" : "s"} en el sistema. ` +
-          `El primero indica que recibirás un lote de camisetas desde el módulo de compras. ` +
-          `¿Deseas confirmar la recepción?`
+        const pendientes = json.data ?? []
+
+        // Extraer resúmenes de los primeros dos mensajes
+        const resumen1 = pendientes[0]?.mensaje_usuario ?? pendientes[0]?.accion ?? "una tarea pendiente"
+        const resumen2 = pendientes[1]?.mensaje_usuario ?? pendientes[1]?.accion ?? "otra tarea pendiente"
+
+        let mensajeBienvenida: string
+
+        if (n === 1) {
+          // Un solo pendiente: leerlo y preguntar si desea confirmarlo
+          mensajeBienvenida =
+            `Buenos días ${nombreUsuario}. Tienes un mensaje pendiente en tu bandeja de inventario. ` +
+            `${resumen1}. ` +
+            `¿Deseas confirmarlo ahora por voz?`
+        } else {
+          // Más de uno: resumen de los dos primeros y pregunta de inicio
+          mensajeBienvenida =
+            `Buenos días ${nombreUsuario}. Tienes ${n} mensajes pendientes en tu bandeja de inventario. ` +
+            `El primero es: ${resumen1}. ` +
+            `Y el segundo es: ${resumen2}. ` +
+            `¿Con cuál de estas acciones te gustaría empezar a trabajar hoy?`
+        }
 
         // 4. Simular mensaje del agente en el chat (sin invocar Ollama)
         agent.inyectarMensajeAgente(mensajeBienvenida)
 
-        // 5. Leer el mensaje en voz alta
-        // Pequeño delay para que el DOM renderice primero
-        setTimeout(() => emitirVoz(mensajeBienvenida), 300)
+        // 5. Leer el mensaje en voz alta con pequeño delay para que el DOM renderice
+        setTimeout(() => emitirVoz(mensajeBienvenida), 400)
       })
       .catch((err) => {
         console.warn("[ChatPage] No se pudo obtener tareas pendientes:", err)

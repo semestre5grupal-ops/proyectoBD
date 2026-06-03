@@ -196,3 +196,39 @@ export async function ingresarStock(
 export async function sincronizarCloud(): Promise<SincronizarCloudResponse> {
   return apiFetch<SincronizarCloudResponse>("/api/inventario/sincronizar-cloud");
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// NOTIFICACIONES DE TAREAS — Persistencia desde el frontend
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Payload para POST /api/inventario/tareas */
+export interface NotificacionTareaPayload {
+  accion: string;
+  mensaje_usuario: string;
+  rol_origen: string;
+  rol_destino: string;
+  payload_json?: Record<string, unknown>;
+}
+
+/** Response de POST /api/inventario/tareas */
+export interface CrearTareaResponse extends ApiBaseResponse {
+  message?: string;
+  data?: Record<string, unknown>;
+}
+
+/**
+ * Persiste una notificación de tarea en Supabase a través del backend.
+ * El frontend la llama en use-agent.ts tan pronto como Ollama genera el JSON
+ * de intención y se detecta que rol_destino !== rol del usuario actual.
+ *
+ * Endpoint: POST /api/inventario/tareas
+ */
+export async function crearNotificacionTarea(
+  payload: NotificacionTareaPayload
+): Promise<CrearTareaResponse> {
+  return apiFetch<CrearTareaResponse>("/api/inventario/tareas", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
