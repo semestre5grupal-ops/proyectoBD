@@ -65,7 +65,21 @@ const data = {
           icon: Package,
         },
         // Gabriel — Ventas: agregar aquí cuando esté listo
-        // Liz — Compras: agregar aquí cuando esté listo
+        {
+          title: "Compras (Liz)",
+          url: "#",
+          icon: ShoppingCart,
+          items: [
+            {
+              title: "Órdenes de Compra",
+              url: "/dashboard/compras/ordenes",
+            },
+            {
+              title: "Proveedores",
+              url: "/dashboard/compras/proveedores",
+            },
+          ],
+        },
         // Alejandro — Talento Humano: agregar aquí cuando esté listo
         {
           title: "Compras (Liz)",
