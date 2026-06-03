@@ -117,6 +117,22 @@ const ACCION_CONFIG: Record<AccionInventario, AccionConfig> = {
     colorBadge: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
     colorIcono: "text-emerald-500",
   },
+  CREAR_PRODUCTO: {
+    label: "Orden de Recepción (Jefe → Operativo)",
+    labelCorto: "DELEGACIÓN",
+    Icon: Package,
+    colorBorder: "border-blue-500/40 dark:border-blue-500/30",
+    colorBadge: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30",
+    colorIcono: "text-blue-500",
+  },
+  AUTORIZAR_AJUSTE: {
+    label: "Ajuste Autorizado",
+    labelCorto: "AJUSTE",
+    Icon: ArrowDownCircle,
+    colorBorder: "border-amber-500/40 dark:border-amber-500/30",
+    colorBadge: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30",
+    colorIcono: "text-amber-500",
+  },
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

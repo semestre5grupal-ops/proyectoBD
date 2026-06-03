@@ -74,12 +74,14 @@ exports.ingresarStock = async (req, res) => {
 
         // ── Persistir notificación en notificaciones_tareas (estado 'pendiente') ──────
         // Se dispara cuando Ollama genera un JSON válido de INGRESAR_STOCK / CONFIRMAR_RECEPCION.
-        // El OPERATIVO_INVENTARIO la leerá al entrar al módulo de chat.
+        // rol_origen = quien ejecutó el ingreso (JEFE o AUXILIAR)
+        // rol_destino = OPERATIVO_INVENTARIO (quien confirma físicamente en bodega)
         try {
             await guardarNotificacion({
                 accion: 'CONFIRMAR_RECEPCION',
                 mensaje: `Recibirás un lote de ${cantidad} unidades (variante ${idVariante}) desde el módulo de compras. Confirma la recepción física.`,
-                rolOrigen: req.usuarioAutenticado?.rol_nombre ?? 'SISTEMA',
+                rolOrigen:  req.usuarioAutenticado?.rol_nombre ?? 'SISTEMA',
+                rolDestino: 'OPERATIVO_INVENTARIO',
                 payload: { idVariante, cantidad, idBodega, descripcion, usuario },
             });
         } catch (notifErr) {

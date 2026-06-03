@@ -274,10 +274,16 @@ export function useAgent(): UseAgentState & UseAgentActions {
   const [nombreUsuario] = useState<string>(sesion.nombre);
   const [escuchando, setEscuchando] = useState(false);
 
-  // ── Refs para control de streaming y reconocimiento de voz ─────────────────
+  // ── Refs para control de streaming, tarea pendiente y reconocimiento de voz ─────
   const abortControllerRef = useRef<AbortController | null>(null);
   const recognitionRef     = useRef<SpeechRecognition | null>(null);
   const historialRef       = useRef<OllamaMessage[]>([]); // historial de conversación
+  /**
+   * pendingTaskRef: referencia a la TareaInventario cuya TaskCard está visible
+   * y esperando acción humana. Se usa para el control de confirmación por voz.
+   * null = no hay tarea activa esperando confirmación.
+   */
+  const pendingTaskRef = useRef<TareaInventario | null>(null);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ACCIÓN: Añadir mensaje a la lista
@@ -340,6 +346,16 @@ export function useAgent(): UseAgentState & UseAgentActions {
           break;
         }
 
+        case 'CREAR_PRODUCTO':
+        case 'AUTORIZAR_AJUSTE': {
+          // El Jefe delega — estas acciones NO ejecutan stock directamente.
+          // Solo persisten la notificación en el backend (ya ocurrió al llamar
+          // ingresarStock del Jefe, o se deja pendiente para el Operativo).
+          // Resultado exitoso sin impacto inmediato en stock.
+          resultado = { success: true, message: 'Tarea delegada al Operativo de Inventario.' };
+          break;
+        }
+
         case 'DESCONTAR_STOCK': {
           if (payload.idVariante == null || payload.cantidad == null) {
             throw new Error('Faltan datos: idVariante y cantidad son obligatorios.');
@@ -367,6 +383,11 @@ export function useAgent(): UseAgentState & UseAgentActions {
           // Estas acciones no tienen endpoint directo en inventarioService
           resultado = { success: true, message: 'Acción registrada.' };
           break;
+      }
+
+      // Liberar la tarea pendiente del ref al ejecutar
+      if (pendingTaskRef.current?.id === tarea.id) {
+        pendingTaskRef.current = null;
       }
 
       // ── Actualizar estado de la tarea a 'ejecutada' ──────────────────────
@@ -499,17 +520,30 @@ export function useAgent(): UseAgentState & UseAgentActions {
         return;
       }
 
-      // 7b. Si confirmacion_requerida → reemplazar la burbuja de texto por un TaskCard
-      if (tarea.confirmacion_requerida) {
+      // ══ Regla de oro: CREAR_PRODUCTO y AUTORIZAR_AJUSTE son SIEMPRE confirmación requerida ══
+      // Aunque Ollama devuelva confirmacion_requerida: false por error, lo forzamos a true.
+      const accionesQueRequierenConfirmacion: AccionInventario[] = [
+        'CREAR_PRODUCTO', 'AUTORIZAR_AJUSTE', 'DAR_DE_BAJA', 'SINCRONIZAR',
+      ];
+      const confirmacionForzada =
+        tarea.confirmacion_requerida ||
+        accionesQueRequierenConfirmacion.includes(tarea.accion);
+
+      // 7b. Si requiere confirmación → reemplazar la burbuja de texto por un TaskCard
+      //     y registrar en pendingTaskRef para el control de voz.
+      if (confirmacionForzada) {
+        const tareaConFlag: TareaInventario = { ...tarea, confirmacion_requerida: true };
         setMensajes(prev =>
           prev.map(m =>
-            m.id === thinkingId ? crearMensajeTarea(tarea) : m
+            m.id === thinkingId ? crearMensajeTarea(tareaConFlag) : m
           )
         );
+        // Registrar la tarea como pendiente para que toggleVoz la detecte
+        pendingTaskRef.current = tareaConFlag;
         // 🔊 Leer el mensaje de la TaskCard en voz alta
         emitirVoz(tarea.mensaje_usuario);
       } else {
-        // 7c. Sin confirmación → ejecutar directamente y actualizar burbuja
+        // 7c. Sin confirmación (ej. CONSULTAR) → ejecutar directamente
         setMensajes(prev =>
           prev.map(m =>
             m.id === thinkingId ? crearMensajeTarea(tarea) : m
@@ -606,9 +640,40 @@ export function useAgent(): UseAgentState & UseAgentActions {
     recognition.onstart = () => setEscuchando(true);
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const transcript = event.results[0][0].transcript;
-      // Enviar la transcripción como si fuera texto escrito
-      void sendMessage(transcript);
+      const transcript = event.results[0][0].transcript.toLowerCase().trim();
+
+      // ══ MODO CONFIRMACIÓN POR VOZ ═══════════════════════════════════
+      // Si hay una TaskCard en estado 'pendiente', interceptar palabras clave
+      // en lugar de enviar el transcript a Ollama.
+      const tareaActiva = pendingTaskRef.current;
+      if (tareaActiva) {
+        const palabrasConfirmar = ['sí', 'si', 'confirmar', 'confirmo', 'proceder', 'aceptar', 'ejecutar', 'ejecuto', 'procedo'];
+        const palabrasCancelar  = ['no', 'cancelar', 'cancelo', 'rechazar', 'rechazo', 'cancelado'];
+
+        const esConfirmacion = palabrasConfirmar.some(p => transcript.includes(p));
+        const esCancelacion  = palabrasCancelar.some(p  => transcript.includes(p));
+
+        if (esConfirmacion) {
+          // Confirmación por voz: ejecutar tarea y limpiar pendingTaskRef
+          emitirVoz('Confirmando la tarea. Ejecutando ahora.');
+          void confirmarTarea(tareaActiva.id);
+          return;
+        }
+        if (esCancelacion) {
+          // Cancelación por voz: rechazar tarea y limpiar pendingTaskRef
+          emitirVoz('Tarea cancelada.');
+          rechazarTarea(tareaActiva.id);
+          pendingTaskRef.current = null;
+          return;
+        }
+        // Palabra no reconocida como clave — informar y no enviar a Ollama
+        emitirVoz('No te entendí. Di sí para confirmar o no para cancelar.');
+        return;
+      }
+
+      // ══ MODO NORMAL ══════════════════════════════════════════
+      // No hay tarea pendiente — enviar el transcript como mensaje normal a Ollama
+      void sendMessage(event.results[0][0].transcript);
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -623,7 +688,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
 
     recognitionRef.current = recognition;
     recognition.start();
-  }, [escuchando, sendMessage]);
+  }, [escuchando, sendMessage, confirmarTarea, rechazarTarea]);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ACCIÓN: Cancelar generación en curso
@@ -692,6 +757,10 @@ function formatearResultado(
       return `☁️ Sincronización completada. Items procesados: ${resultado.items_sincronizados ?? '—'}.`;
     case 'CONFIRMAR_RECEPCION':
       return '✅ Recepción confirmada y registrada.';
+    case 'CREAR_PRODUCTO':
+      return '📤 Orden de recepción generada y enviada al Operativo de Inventario.';
+    case 'AUTORIZAR_AJUSTE':
+      return '✅ Ajuste autorizado. El Operativo debe confirmar la ejecución en bodega.';
     default:
       return String(resultado.message ?? 'Operación completada.');
   }
