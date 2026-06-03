@@ -1,15 +1,42 @@
 const NotificacionesModel = require('../models/notificacionesModel');
 
 /**
+ * Mapa inverso id_rol → nombre de rol.
+ * Sincronizado con authMiddleware.js y la tabla 'roles' de Supabase.
+ */
+const MAPA_ROLES = {
+    8:  'JEFE_INVENTARIO',
+    9:  'AUXILIAR_INVENTARIO',
+    10: 'OPERATIVO_INVENTARIO',
+};
+
+/**
+ * Resuelve el nombre de rol string desde el payload del JWT.
+ * Primero intenta leer rol_nombre (ya resuelto por authMiddleware),
+ * luego hace fallback al id_rol numérico.
+ *
+ * @param {object} usuarioAutenticado - req.usuarioAutenticado
+ * @returns {string} nombre del rol o 'OPERATIVO_INVENTARIO' por defecto
+ */
+function resolverRolNombre(usuarioAutenticado) {
+    if (usuarioAutenticado?.rol_nombre) return usuarioAutenticado.rol_nombre;
+    return MAPA_ROLES[Number(usuarioAutenticado?.id_rol)] ?? 'OPERATIVO_INVENTARIO';
+}
+
+/**
  * GET /api/inventario/tareas/pendientes
- * Devuelve todas las notificaciones con estado = 'pendiente'.
+ * Devuelve todas las notificaciones con estado = 'pendiente'
+ * filtradas por el rol_destino del usuario autenticado.
  * Protegido con verificarToken (definido en la ruta).
  */
 exports.obtenerTareasPendientes = async (req, res) => {
     try {
-        const pendientes = await NotificacionesModel.obtenerPendientes();
+        const rolDestino = resolverRolNombre(req.usuarioAutenticado);
+        const pendientes = await NotificacionesModel.obtenerPendientesPorRol(rolDestino);
+
         return res.status(200).json({
             success: true,
+            rol_destino: rolDestino,
             total: pendientes.length,
             data: pendientes,
         });
@@ -19,10 +46,23 @@ exports.obtenerTareasPendientes = async (req, res) => {
 };
 
 /**
- * POST (interno) — usado por el controlador de IA para persistir tareas
- * generadas por Ollama que requieran acción del OPERATIVO_INVENTARIO.
- * No es una ruta HTTP directa; se exporta para reutilizarla desde inventarioController.
+ * Helper interno — usado por inventarioController para persistir tareas
+ * generadas por Ollama que requieran acción de otro rol.
+ * No es una ruta HTTP directa.
+ *
+ * @param {object} params
+ * @param {object} params.payload
+ * @param {string} params.accion
+ * @param {string} params.mensaje
+ * @param {string} params.rolOrigen  - Quien generó la tarea
+ * @param {string} [params.rolDestino] - Quien debe ejecutarla. Default: 'OPERATIVO_INVENTARIO'
  */
-exports.guardarNotificacion = async ({ payload, accion, mensaje, rolOrigen }) => {
-    return NotificacionesModel.crearNotificacion({ payload, accion, mensaje, rolOrigen });
+exports.guardarNotificacion = async ({ payload, accion, mensaje, rolOrigen, rolDestino = 'OPERATIVO_INVENTARIO' }) => {
+    return NotificacionesModel.crearNotificacion({
+        payload,
+        accion,
+        mensaje,
+        rolOrigen,
+        rolDestino,
+    });
 };
