@@ -40,8 +40,6 @@ import {
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,7 +50,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 
-import { useAgent } from "@/app/chat/hooks/use-agent"
+import { useAgent, emitirVoz } from "@/app/chat/hooks/use-agent"
 import { MessageList } from "@/app/chat/components/message-list"
 import { MessageInput } from "@/app/chat/components/message-input"
 import { mapearRolJWT } from "@/app/chat/prompts/system-prompts"
@@ -188,6 +186,61 @@ export default function ChatAgentePage() {
       // No usamos sendMessage para no invocar a Ollama — solo UI
     }
   }, [agent.mensajes.length])
+
+  // ── Rutina de bienvenida asíncrona — OPERATIVO_INVENTARIO ─────────────────
+  // Se ejecuta UNA sola vez al montar. Si el rol es OPERATIVO_INVENTARIO,
+  // consulta las tareas pendientes y anuncia el resultado por voz.
+  const bienvenidaSentRef = useRef(false)
+  useEffect(() => {
+    if (bienvenidaSentRef.current) return
+    bienvenidaSentRef.current = true
+
+    // 1. Leer JWT del localStorage
+    const token = localStorage.getItem("jwt_token")
+    if (!token) return
+
+    let payload: { id_rol?: number; rol?: string; usu_nombre?: string }
+    try {
+      const parts = token.split(".")
+      if (parts.length !== 3) return
+      payload = JSON.parse(atob(parts[1])) as typeof payload
+    } catch {
+      return // Token malformado — ignorar
+    }
+
+    // 2. Verificar rol OPERATIVO_INVENTARIO
+    const rol = mapearRolJWT(payload)
+    if (rol !== "OPERATIVO_INVENTARIO") return
+
+    const nombreUsuario = payload.usu_nombre ?? "Paul"
+    const apiBase = (import.meta.env.VITE_API_INVENTARIO as string | undefined) ?? "http://localhost:4000"
+
+    // 3. Fetch al endpoint de tareas pendientes
+    fetch(`${apiBase}/api/inventario/tareas/pendientes`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json: { success: boolean; total: number } | null) => {
+        if (!json?.success || json.total === 0) return
+
+        const n = json.total
+        const mensajeBienvenida =
+          `Buenos días ${nombreUsuario}. Tienes ${n} mensaje${n === 1 ? "" : "s"} pendiente${n === 1 ? "" : "s"} en el sistema. ` +
+          `El primero indica que recibirás un lote de camisetas desde el módulo de compras. ` +
+          `¿Deseas confirmar la recepción?`
+
+        // 4. Simular mensaje del agente en el chat (sin invocar Ollama)
+        agent.inyectarMensajeAgente(mensajeBienvenida)
+
+        // 5. Leer el mensaje en voz alta
+        // Pequeño delay para que el DOM renderice primero
+        setTimeout(() => emitirVoz(mensajeBienvenida), 300)
+      })
+      .catch((err) => {
+        console.warn("[ChatPage] No se pudo obtener tareas pendientes:", err)
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Solo al montar — intencionalmente sin deps
 
   // ── Adaptador de tipos: MensajeERP → Message (para MessageList) ────────────
   // MessageList recibe Message[] del Zustand original.
@@ -392,57 +445,52 @@ export default function ChatAgentePage() {
             ÁREA DE MENSAJES
         ══════════════════════════════════════════════════════════════════ */}
         <div className="flex-1 min-h-0 flex flex-col border-x border-b rounded-b-lg overflow-hidden bg-background">
-          <ScrollArea className="flex-1">
-            <div className="flex flex-col gap-0">
 
-              {/* ── Mensaje de bienvenida del sistema ────────────────── */}
-              <div className="flex gap-3 px-4 pt-5 pb-3">
-                <div className="w-8 shrink-0">
-                  <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-                    <Bot size={16} className="text-primary" />
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Agente ERP · {rolCfg.label}
-                  </span>
-                  <div className="rounded-lg px-3 py-2 bg-muted text-sm max-w-lg">
-                    {MENSAJES_BIENVENIDA[rolEfectivo]}
-                  </div>
-                  <span className="text-[10px] text-muted-foreground">
-                    Sistema activo
-                  </span>
-                </div>
+          {/* ── Mensaje de bienvenida — fijo en la parte superior (no scrollea) */}
+          <div className="shrink-0 flex gap-3 px-4 pt-5 pb-3 border-b border-border/40">
+            <div className="w-8 shrink-0">
+              <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
+                <Bot size={16} className="text-primary" />
               </div>
-
-              <Separator className="mx-4 my-1" />
-
-              {/* ── Lista de mensajes del agente ─────────────────────── */}
-              {agent.mensajes.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
-                  <div className="h-14 w-14 rounded-2xl bg-muted flex items-center justify-center">
-                    <Brain size={28} className="opacity-40" />
-                  </div>
-                  <p className="text-sm">
-                    Escribe una instrucción o usa el micrófono para empezar
-                  </p>
-                </div>
-              ) : (
-                <div className="px-0">
-                  <MessageList
-                    messages={mensajesAdaptados}
-                    users={[]}
-                    currentUserId="user"
-                    onConfirmarTarea={agent.confirmarTarea}
-                    onRechazarTarea={agent.rechazarTarea}
-                  />
-                </div>
-              )}
-
-              {/* Scroll anchor */}
-              <div ref={bottomRef} className="h-2" />
             </div>
-          </ScrollArea>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-muted-foreground">
+                Agente ERP · {rolCfg.label}
+              </span>
+              <div className="rounded-lg px-3 py-2 bg-muted text-sm max-w-lg">
+                {MENSAJES_BIENVENIDA[rolEfectivo]}
+              </div>
+              <span className="text-[10px] text-muted-foreground">
+                Sistema activo
+              </span>
+            </div>
+          </div>
+
+          {/* ── Área de mensajes — un solo scroll container nativo ─────────────
+              ⚠️  NO anidar con otro ScrollArea: MessageList ya gestiona su
+              propio scroll con bottomRef.scrollIntoView({ behavior:'smooth' }).
+              overflow-y-auto + flex-1 + min-h-0 = altura controlada y scroll nativo. */}
+          {agent.mensajes.length === 0 ? (
+            <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+              <div className="h-14 w-14 rounded-2xl bg-muted flex items-center justify-center">
+                <Brain size={28} className="opacity-40" />
+              </div>
+              <p className="text-sm">
+                Escribe una instrucción o usa el micrófono para empezar
+              </p>
+            </div>
+          ) : (
+            /* MessageList ocupa TODO el espacio disponible y gestiona su propio scroll */
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <MessageList
+                messages={mensajesAdaptados}
+                users={[]}
+                currentUserId="user"
+                onConfirmarTarea={agent.confirmarTarea}
+                onRechazarTarea={agent.rechazarTarea}
+              />
+            </div>
+          )}
 
           {/* ══════════════════════════════════════════════════════════════
               INPUT DE MENSAJE / CONTROL DE VOZ

@@ -1,9 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const inventarioController = require('../controllers/inventarioController');
+const notificacionesController = require('../controllers/notificacionesController');
 
 // Middleware de autenticación y autorización (RBAC)
 const { verificarToken, restringirA } = require('../middlewares/authMiddleware');
+
+// ─── NOTIFICACIONES DE TAREAS ─────────────────────────────────────────────────
+// Cualquier usuario autenticado puede leer sus tareas pendientes (OPERATIVO lo necesita).
+router.get('/tareas/pendientes', verificarToken, notificacionesController.obtenerTareasPendientes);
 
 // ─── CONSULTA DE STOCK ────────────────────────────────────────────────────────
 // Cualquier usuario autenticado puede revisar existencias (sin restricción de rol).

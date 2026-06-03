@@ -154,7 +154,7 @@ export function MessageList({
   const messageGroups = groupMessagesByDay(messages)
 
   return (
-    <ScrollArea className="flex-1 px-4" ref={scrollAreaRef}>
+    <ScrollArea className="h-full px-4" ref={scrollAreaRef}>
       <div className="space-y-4 py-4">
         {messageGroups.map((group) => (
           <div key={group.date}>
