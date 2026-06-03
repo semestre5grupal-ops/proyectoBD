@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react"
 import { format, isToday, isYesterday } from "date-fns"
-import { CheckCheck, MoreHorizontal, Reply, Copy, Trash2 } from "lucide-react"
+import { CheckCheck, MoreHorizontal, Reply, Copy, Trash2, Bot, Loader2 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -16,14 +16,26 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { type Message, type User } from "@/app/chat/use-chat"
+import { TaskCard } from "@/app/chat/components/task-card"
+import type { MensajeERP } from "@/app/chat/types/erp-agent"
 
 interface MessageListProps {
   messages: Message[]
   users: User[]
   currentUserId?: string
+  /** Callback para confirmar una TareaInventario pendiente */
+  onConfirmarTarea?: (tareaId: string) => Promise<void>
+  /** Callback para rechazar una TareaInventario pendiente */
+  onRechazarTarea?: (tareaId: string) => void
 }
 
-export function MessageList({ messages, users, currentUserId = "current-user" }: MessageListProps) {
+export function MessageList({
+  messages,
+  users,
+  currentUserId = "current-user",
+  onConfirmarTarea,
+  onRechazarTarea,
+}: MessageListProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const previousMessageCountRef = useRef(0)
@@ -171,115 +183,153 @@ export function MessageList({ messages, users, currentUserId = "current-user" }:
                       isConsecutive && !isOwnMessage && "ml-12"
                     )}
                   >
-                    {/* Avatar */}
-                    {!isOwnMessage && (
-                      <div className="w-8">
-                        {showAvatar && user && (
-                          <Avatar className="h-8 w-8 cursor-pointer">
-                            <AvatarImage src={user.avatar} alt={user.name} />
-                            <AvatarFallback className="text-xs">
-                              {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                            </AvatarFallback>
-                          </Avatar>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Message content */}
-                    <div className={cn("flex-1 max-w-[70%]", isOwnMessage && "flex flex-col items-end")}>
-                      {/* Sender name for group messages */}
-                      {showName && user && !isOwnMessage && (
-                        <div className="text-sm font-medium text-foreground mb-1">
-                          {user.name}
+                    {/* ── Tipo task_card: render especial de TaskCard ─────── */}
+                    {(message as unknown as MensajeERP).type === 'task_card' && (message as unknown as MensajeERP).tarea ? (
+                      <div className="flex gap-3 w-full">
+                        {/* Avatar del agente IA */}
+                        <div className="w-8 shrink-0">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
+                            <Bot size={16} className="text-primary" />
+                          </div>
                         </div>
-                      )}
+                        <div className="flex flex-col gap-1 max-w-sm">
+                          <span className="text-xs font-medium text-muted-foreground">Agente ERP</span>
+                          <TaskCard
+                            tarea={(message as unknown as MensajeERP).tarea!}
+                            onConfirmar={onConfirmarTarea ?? (async () => {})}
+                            onRechazar={onRechazarTarea ?? (() => {})}
+                          />
+                          <span className="text-[10px] text-muted-foreground">
+                            {formatMessageTime(message.timestamp)}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (message as unknown as MensajeERP).type === 'thinking' ? (
+                      /* ── Tipo thinking: burbuja de "IA procesando..." ──── */
+                      <div className="flex gap-3">
+                        <div className="w-8 shrink-0">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
+                            <Bot size={16} className="text-primary" />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 rounded-lg px-3 py-2 bg-muted text-sm text-muted-foreground">
+                          <Loader2 size={13} className="animate-spin" />
+                          Procesando instrucción...
+                        </div>
+                      </div>
+                    ) : (
+                      /* ── Tipo text/image/file: burbuja estándar ──────────── */
+                      <>
+                        {/* Avatar */}
+                        {!isOwnMessage && (
+                          <div className="w-8">
+                            {showAvatar && user && (
+                              <Avatar className="h-8 w-8 cursor-pointer">
+                                <AvatarImage src={user.avatar} alt={user.name} />
+                                <AvatarFallback className="text-xs">
+                                  {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                                </AvatarFallback>
+                              </Avatar>
+                            )}
+                          </div>
+                        )}
 
-                      {/* Message bubble */}
-                      <div className="relative group/message">
-                        <div
-                          className={cn(
-                            "rounded-lg px-3 py-2 text-sm break-words",
-                            isOwnMessage
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted",
-                            isConsecutive && "mt-1"
-                          )}
-                        >
-                          <p>{message.content}</p>
-
-                          {/* Message reactions */}
-                          {message.reactions.length > 0 && (
-                            <div className="flex gap-1 mt-2">
-                              {message.reactions.map((reaction, idx) => (
-                                <div
-                                  key={idx}
-                                  className={cn(
-                                    "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs border cursor-pointer",
-                                    "bg-background/90 backdrop-blur-sm shadow-sm"
-                                  )}
-                                >
-                                  <span>{reaction.emoji}</span>
-                                  <span className="text-muted-foreground">{reaction.count}</span>
-                                </div>
-                              ))}
+                        {/* Message content */}
+                        <div className={cn("flex-1 max-w-[70%]", isOwnMessage && "flex flex-col items-end")}>
+                          {/* Sender name for group messages */}
+                          {showName && user && !isOwnMessage && (
+                            <div className="text-sm font-medium text-foreground mb-1">
+                              {user.name}
                             </div>
                           )}
 
-                          {/* Timestamp and status */}
-                          <div className={cn(
-                            "flex items-center gap-1 mt-1 text-xs",
-                            isOwnMessage
-                              ? "text-primary-foreground/70 justify-end"
-                              : "text-muted-foreground"
-                          )}>
-                            <span>{formatMessageTime(message.timestamp)}</span>
-                            {message.isEdited && (
-                              <span className="italic">(edited)</span>
-                            )}
-                            {isOwnMessage && (
-                              <div className="flex">
-                                {/* Message status indicators */}
-                                <CheckCheck className="h-3 w-3" />
+                          {/* Message bubble */}
+                          <div className="relative group/message">
+                            <div
+                              className={cn(
+                                "rounded-lg px-3 py-2 text-sm break-words",
+                                isOwnMessage
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-muted",
+                                isConsecutive && "mt-1"
+                              )}
+                            >
+                              <p>{message.content}</p>
+
+                              {/* Message reactions */}
+                              {message.reactions.length > 0 && (
+                                <div className="flex gap-1 mt-2">
+                                  {message.reactions.map((reaction, idx) => (
+                                    <div
+                                      key={idx}
+                                      className={cn(
+                                        "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs border cursor-pointer",
+                                        "bg-background/90 backdrop-blur-sm shadow-sm"
+                                      )}
+                                    >
+                                      <span>{reaction.emoji}</span>
+                                      <span className="text-muted-foreground">{reaction.count}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Timestamp and status */}
+                              <div className={cn(
+                                "flex items-center gap-1 mt-1 text-xs",
+                                isOwnMessage
+                                  ? "text-primary-foreground/70 justify-end"
+                                  : "text-muted-foreground"
+                              )}>
+                                <span>{formatMessageTime(message.timestamp)}</span>
+                                {message.isEdited && (
+                                  <span className="italic">(edited)</span>
+                                )}
+                                {isOwnMessage && (
+                                  <div className="flex">
+                                    <CheckCheck className="h-3 w-3" />
+                                  </div>
+                                )}
                               </div>
-                            )}
+                            </div>
+
+                            {/* Message actions */}
+                            <div className="absolute top-0 right-0 opacity-0 group-hover/message:opacity-100">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 cursor-pointer"
+                                  >
+                                    <MoreHorizontal className="h-3 w-3" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem className="cursor-pointer">
+                                    <Reply className="h-4 w-4 mr-2" />
+                                    Reply
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem className="cursor-pointer">
+                                    <Copy className="h-4 w-4 mr-2" />
+                                    Copy
+                                  </DropdownMenuItem>
+                                  {isOwnMessage && (
+                                    <>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem className="cursor-pointer text-destructive">
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
                         </div>
-
-                        {/* Message actions */}
-                        <div className="absolute top-0 right-0 opacity-0 group-hover/message:opacity-100">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 cursor-pointer"
-                              >
-                                <MoreHorizontal className="h-3 w-3" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem className="cursor-pointer">
-                                <Reply className="h-4 w-4 mr-2" />
-                                Reply
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="cursor-pointer">
-                                <Copy className="h-4 w-4 mr-2" />
-                                Copy
-                              </DropdownMenuItem>
-                              {isOwnMessage && (
-                                <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem className="cursor-pointer text-destructive">
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Delete
-                                  </DropdownMenuItem>
-                                </>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                    </div>
+                      </>
+                    )}
                   </div>
                 )
               })}
