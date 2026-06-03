@@ -9,7 +9,6 @@ export interface Periodo {
 }
 
 export const periodoService = {
-  getAll: async () => {
   getAll: async (): Promise<Periodo[]> => {
     const response = await apiFetch('/periodo');
     if (!response.ok) throw new Error('Error al obtener periodos');

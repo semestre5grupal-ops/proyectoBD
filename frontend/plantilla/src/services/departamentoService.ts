@@ -8,7 +8,6 @@ export interface Departamento {
 }
 
 export const departamentoService = {
-  getAll: async () => {
   getAll: async (): Promise<Departamento[]> => {
     const response = await apiFetch('/departamento');
     if (!response.ok) throw new Error('Error al obtener departamentos');
