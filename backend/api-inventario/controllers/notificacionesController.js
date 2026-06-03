@@ -50,14 +50,7 @@ function resolverRolNombre(usuarioAutenticado) {
 exports.obtenerTareasPendientes = async (req, res) => {
     try {
         const rolDestino = resolverRolNombre(req.usuarioAutenticado);
-
-        // LOG DE DIAGNÓSTICO — visible en la terminal del servidor Node
-        console.log('[obtenerTareasPendientes] usuarioAutenticado:', req.usuarioAutenticado);
-        console.log('[obtenerTareasPendientes] rolDestino resuelto:', rolDestino);
-
         const pendientes = await NotificacionesModel.obtenerPendientesPorRol(rolDestino);
-
-        console.log('[obtenerTareasPendientes] pendientes encontrados:', pendientes.length);
 
         return res.status(200).json({
             success: true,
@@ -66,11 +59,7 @@ exports.obtenerTareasPendientes = async (req, res) => {
             data: pendientes,
         });
     } catch (error) {
-        console.error('🔥 ERROR EN CONTROLADOR [obtenerTareasPendientes]:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message ?? 'Error interno al obtener tareas pendientes.',
-        });
+        return res.status(500).json({ success: false, error: error.message });
     }
 };
 
@@ -86,15 +75,13 @@ exports.obtenerTareasPendientes = async (req, res) => {
  * @param {string} params.rolOrigen  - Quien generó la tarea
  * @param {string} [params.rolDestino] - Quien debe ejecutarla. Default: 'OPERATIVO_INVENTARIO'
  */
-exports.guardarNotificacion = async ({ payload, accion, mensaje, rolOrigen, rolDestino = 'OPERATIVO_INVENTARIO', usuario = 'SISTEMA', instruccion = '' }) => {
+exports.guardarNotificacion = async ({ payload, accion, mensaje, rolOrigen, rolDestino = 'OPERATIVO_INVENTARIO' }) => {
     return NotificacionesModel.crearNotificacion({
+        payload,
         accion,
-        respuestaIa:         mensaje,
-        instruccionOriginal: instruccion,
-        usuarioOrigen:       usuario,
+        mensaje,
         rolOrigen,
         rolDestino,
-        payload,
     });
 };
 
@@ -113,8 +100,6 @@ exports.crearTarea = async (req, res) => {
     try {
         const { accion, mensaje_usuario, rol_origen, rol_destino, payload_json } = req.body;
 
-        console.log('[crearTarea] body recibido:', { accion, mensaje_usuario, rol_origen, rol_destino });
-
         if (!accion || !mensaje_usuario || !rol_destino) {
             return res.status(400).json({
                 success: false,
@@ -123,16 +108,13 @@ exports.crearTarea = async (req, res) => {
         }
 
         const rolOrigen = rol_origen ?? resolverRolNombre(req.usuarioAutenticado);
-        const usuarioOrigen = req.usuarioAutenticado?.usu_nombre ?? req.usuarioAutenticado?.nombre ?? 'Sistema';
 
         const notificacion = await NotificacionesModel.crearNotificacion({
             accion,
-            respuestaIa:         mensaje_usuario,
-            instruccionOriginal: payload_json?.instruccion_original ?? mensaje_usuario,
-            usuarioOrigen,
+            mensaje: mensaje_usuario,
             rolOrigen,
-            rolDestino:  rol_destino,
-            payload:     payload_json ?? {},
+            rolDestino: rol_destino,
+            payload: payload_json ?? {},
         });
 
         return res.status(201).json({
@@ -141,36 +123,7 @@ exports.crearTarea = async (req, res) => {
             data: notificacion,
         });
     } catch (error) {
-        console.error('🔥 ERROR EN CONTROLADOR [crearTarea]:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message ?? 'Error interno al crear la tarea.',
-        });
-    }
-};
-
-/**
- * PUT /api/inventario/tareas/:id/estado
- * Marca una notificación específica como 'ejecutada' o el estado enviado en el body.
- */
-exports.actualizarEstadoTarea = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { estado = 'ejecutada' } = req.body;
-
-        const notificacion = await NotificacionesModel.actualizarEstadoTarea(id, estado);
-
-        return res.status(200).json({
-            success: true,
-            message: `Notificación marcada como ${estado}.`,
-            data: notificacion,
-        });
-    } catch (error) {
-        console.error('🔥 ERROR EN CONTROLADOR [actualizarEstadoTarea]:', error);
-        return res.status(500).json({
-            success: false,
-            error: error.message ?? 'Error interno al actualizar la tarea.',
-        });
+        return res.status(500).json({ success: false, error: error.message });
     }
 };
 

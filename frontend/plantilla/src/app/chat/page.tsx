@@ -237,19 +237,7 @@ export default function ChatAgentePage() {
         console.log("[Bienvenida] Status HTTP:", res.status)
         return res.ok ? res.json() : null
       })
-      .then((json: {
-        success: boolean;
-        total: number;
-        data?: Array<{
-          id: string;
-          accion: string;
-          respuesta_ia: string;
-          instruccion_original: string;
-          rol_origen: string;
-          rol_destino: string;
-          payload_json: Record<string, unknown>;
-        }>
-      } | null) => {
+      .then((json: { success: boolean; total: number; data?: Array<{ mensaje_usuario?: string; accion?: string }> } | null) => {
         // ── LOG DE AUDITORÍA ─────────────────────────────────────────────────
         console.log("TAREAS RECIBIDAS EN FRONT:", json)
 
@@ -261,9 +249,9 @@ export default function ChatAgentePage() {
         const n = json.total
         const pendientes = json.data ?? []
 
-        // Resúmenes de los primeros dos mensajes (columna real: respuesta_ia)
-        const resumen1 = pendientes[0]?.respuesta_ia ?? pendientes[0]?.instruccion_original ?? pendientes[0]?.accion ?? "una tarea pendiente"
-        const resumen2 = pendientes[1]?.respuesta_ia ?? pendientes[1]?.instruccion_original ?? pendientes[1]?.accion ?? "otra tarea pendiente"
+        // Resúmenes de los primeros dos mensajes
+        const resumen1 = pendientes[0]?.mensaje_usuario ?? pendientes[0]?.accion ?? "una tarea pendiente"
+        const resumen2 = pendientes[1]?.mensaje_usuario ?? pendientes[1]?.accion ?? "otra tarea pendiente"
 
         let mensajeBienvenida: string
 
@@ -282,26 +270,8 @@ export default function ChatAgentePage() {
 
         console.log("[Bienvenida] Mensaje generado:", mensajeBienvenida)
 
-        // 4. Inyectar en el chat el mensaje de texto principal
+        // 4. Inyectar en el chat sin invocar Ollama
         agent.inyectarMensajeAgente(mensajeBienvenida)
-
-        // 4.1 Inyectar cada tarea pendiente como una TaskCard real para mantener contexto (id, cantidad)
-        pendientes.forEach((t) => {
-          agent.inyectarTaskCardAgente({
-            id: t.id,
-            // @ts-expect-error ignorar casting estricto temporalmente
-            accion: t.accion,
-            mensaje_usuario: t.respuesta_ia || t.instruccion_original || "Tarea delegada",
-            instruccion_original: t.instruccion_original || "",
-            // @ts-expect-error ignorar casting estricto temporalmente
-            rol_origen: t.rol_origen,
-            // @ts-expect-error ignorar casting estricto temporalmente
-            // @ts-expect-error ignorar casting estricto temporalmente
-            rol_destino: t.rol_destino,
-            // @ts-expect-error ignorar casting estricto temporalmente
-            payload: typeof t.payload_json === "string" ? JSON.parse(t.payload_json) : (t.payload_json || {}),
-          })
-        })
 
         // 5. Leer en voz alta con delay para que el DOM renderice
         setTimeout(() => emitirVoz(mensajeBienvenida), 400)

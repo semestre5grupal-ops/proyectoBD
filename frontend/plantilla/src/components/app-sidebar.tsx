@@ -82,6 +82,32 @@ const data = {
         },
         // Alejandro — Talento Humano: agregar aquí cuando esté listo
         {
+          title: "Compras (Liz)",
+          url: "/dashboard/compras",
+          icon: ShoppingCart,
+        },
+        {
+          title: "Talento Humano (Alejandro)",
+          url: "/dashboard-tthh",
+          icon: Users,
+          items: [
+            { title: "Dashboard TTHH", url: "/dashboard-tthh" },
+            { title: "Agente IA", url: "/chat-tthh" },
+            { title: "Departamentos", url: "/tthh/departamentos" },
+            { title: "Cargos", url: "/tthh/cargos" },
+            { title: "Períodos", url: "/tthh/periodos" },
+            { title: "Empleados", url: "/tthh/empleados" },
+            { title: "Contratos", url: "/tthh/contratos" },
+            { title: "Dependientes", url: "/tthh/dependientes" },
+            { title: "Horarios", url: "/tthh/horarios" },
+            { title: "Asistencias", url: "/tthh/asistencias" },
+            { title: "Permisos", url: "/tthh/permisos" },
+            { title: "Vacaciones", url: "/tthh/vacaciones" },
+            { title: "Rubros", url: "/tthh/rubros" },
+            { title: "Roles de Pago", url: "/tthh/roles-pago" },
+          ],
+        },
+        {
           title: "Ajustes (Alejandro)",
           url: "#",
           icon: Settings,

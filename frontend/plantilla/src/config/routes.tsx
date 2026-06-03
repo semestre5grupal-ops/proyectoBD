@@ -45,6 +45,13 @@ const AppearanceSettings = lazy(() => import('@/app/settings/appearance/page'))
 const NotificationSettings = lazy(() => import('@/app/settings/notifications/page'))
 const ConnectionSettings = lazy(() => import('@/app/settings/connections/page'))
 
+// TTHH Pages
+const Departamentos = lazy(() => import('@/app/tthh/departamentos/page'))
+const Cargos = lazy(() => import('@/app/tthh/cargos/page'))
+const Periodos = lazy(() => import('@/app/tthh/periodos/page'))
+const DashboardTTHH = lazy(() => import('@/app/dashboard-tthh/page'))
+const ChatTTHH = lazy(() => import('@/app/chat-tthh/page'))
+
 export interface RouteConfig {
   path: string
   element: React.ReactNode
@@ -79,6 +86,26 @@ export const routes: RouteConfig[] = [
     path: "/dashboard/inventario",
     element: <DashboardInventario />
   },
+  {
+    path: "/tthh/departamentos",
+    element: <Departamentos />
+  },
+  {
+    path: "/tthh/cargos",
+    element: <Cargos />
+  },
+  {
+    path: "/tthh/periodos",
+    element: <Periodos />
+  },
+  {
+    path: "/dashboard-tthh",
+    element: <DashboardTTHH />
+  },
+  {
+    path: "/chat-tthh",
+    element: <ChatTTHH />
+  },
 
   // Application Routes
   {
@@ -105,15 +132,7 @@ export const routes: RouteConfig[] = [
   },
   {
     path: "/dashboard/compras",
-    element: <Navigate to="/dashboard/compras/ordenes" replace />
-  },
-  {
-    path: "/dashboard/compras/ordenes",
-    element: <ComprasOrdenes />
-  },
-  {
-    path: "/dashboard/compras/proveedores",
-    element: <ComprasProveedores />
+    element: <Compras />
   },
   {
     path: "/faqs",

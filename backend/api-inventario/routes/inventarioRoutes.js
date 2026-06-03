@@ -14,9 +14,6 @@ router.get('/tareas/pendientes', verificarToken, notificacionesController.obtene
 //       Solo se llama cuando rol_destino !== rol del usuario actual.
 router.post('/tareas', verificarToken, notificacionesController.crearTarea);
 
-// PUT: El frontend actualiza el estado de la tarea una vez confirmada.
-router.put('/tareas/:id/estado', verificarToken, notificacionesController.actualizarEstadoTarea);
-
 // ─── CONSULTA DE STOCK ────────────────────────────────────────────────────────
 // Cualquier usuario autenticado puede revisar existencias (sin restricción de rol).
 router.get('/stock/:idVariante', verificarToken, inventarioController.consultarStock);
@@ -27,12 +24,6 @@ router.post('/ingresar',  verificarToken, restringirA('JEFE_INVENTARIO', 'OPERAT
 
 // Descontar stock: solo JEFE o OPERATIVO (quien procesa la salida de mercadería).
 router.post('/descontar', verificarToken, restringirA('JEFE_INVENTARIO', 'OPERATIVO_INVENTARIO'), inventarioController.descontarStock);
-
-// Aprobar Ajuste (RPC): solo JEFE o OPERATIVO
-router.put('/ajustes/:id/aprobar', verificarToken, restringirA('JEFE_INVENTARIO', 'OPERATIVO_INVENTARIO'), inventarioController.aprobarAjuste);
-
-// Crear Cabecera Pendiente (Pre-Ajuste): JEFE, OPERATIVO o AUXILIAR
-router.post('/ajustes/pendiente', verificarToken, restringirA('JEFE_INVENTARIO', 'OPERATIVO_INVENTARIO', 'AUXILIAR_INVENTARIO'), inventarioController.crearCabeceraPendiente);
 
 // ─── SINCRONIZACIÓN CLOUD ─────────────────────────────────────────────────────
 // Operación masiva hacia Firebase: exclusivo para el Jefe de Inventario.

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { StatCards } from "./components/stat-cards"
 import { DataTable } from "./components/data-table"
-import { empleadoService, Empleado } from "@/services/empleadoService"
+import { empleadoService, type Empleado } from "@/services/empleadoService"
 
 interface User {
   id: number
