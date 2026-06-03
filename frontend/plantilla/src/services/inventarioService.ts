@@ -16,14 +16,16 @@
  *  ✅ Inyecta Authorization: Bearer <TOKEN> en todas las peticiones.
  *  ✅ Usa la misma clave localStorage('jwt_token') de authService (Alejandro).
  *  ✅ Ante 401/403 elimina el token y redirige a /auth/sign-in (espeja api.ts).
- *  ✅ Lee la URL base desde VITE_API_INVENTARIO con fallback a la URL de Render.
+ *  ✅ Lee la URL base desde VITE_API_INVENTARIO con fallback a localhost:4000 (desarrollo).
  */
 
-// ─── URL base del microservicio de Inventario ─────────────────────────────────
-// Lee la variable de entorno declarada en .env; si no existe usa la URL de Render.
+// ─── URL base del microservicio de Inventario ───────────────────────────────────────────────
+// Lee VITE_API_INVENTARIO del .env de Vite.
+// Fallback: http://localhost:4000 (ambiente de desarrollo local).
+// NUNCA usar URLs de producción hardcodeadas aquí — cambiar el .env para producir.
 const API_BASE_URL =
   (import.meta.env.VITE_API_INVENTARIO as string | undefined) ??
-  "https://api-inventario-1r1w.onrender.com";
+  "http://localhost:4000";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TIPOS — Contratos de Request y Response según CONTEXTO_ACTUAL_PROYECTO.md

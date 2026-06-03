@@ -76,9 +76,50 @@ const updateCompraEstado = async (id, estado) => {
   return result.rows[0];
 };
 
+const updateCompra = async (id, compraData) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { id_proveedor, oc_fechaentrega, oc_subtotal, oc_iva, oc_total, detalles } = compraData;
+    
+    // Update header
+    await client.query(
+      `UPDATE compras 
+       SET id_proveedor = $1, oc_fechaentrega = $2, oc_subtotal = $3, oc_iva = $4, oc_total = $5
+       WHERE id_compra = $6`,
+      [id_proveedor, oc_fechaentrega, oc_subtotal, oc_iva, oc_total, id]
+    );
+    
+    // Delete existing details
+    await client.query(
+      `DELETE FROM proxoc WHERE id_compra = $1`,
+      [id]
+    );
+    
+    // Re-insert details
+    for (const detail of detalles) {
+      const { id_variante, pxo_cantidad, pxo_valor, pxo_subtotal } = detail;
+      await client.query(
+        `INSERT INTO proxoc (id_compra, id_variante, pxo_cantidad, pxo_valor, pxo_subtotal, pxo_estado)
+         VALUES ($1, $2, $3, $4, $5, 'ACT')`,
+        [id, id_variante, pxo_cantidad, pxo_valor, pxo_subtotal]
+      );
+    }
+    
+    await client.query('COMMIT');
+    return { id_compra: Number(id), id_proveedor, oc_fechaentrega, oc_subtotal, oc_iva, oc_total, detalles };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   getCompras,
   getCompraById,
   createCompra,
-  updateCompraEstado
+  updateCompraEstado,
+  updateCompra
 };

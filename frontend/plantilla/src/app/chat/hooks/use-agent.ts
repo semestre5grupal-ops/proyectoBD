@@ -328,7 +328,9 @@ export function useAgent(): UseAgentState & UseAgentActions {
     }
 
     try {
-      let resultado: Record<string, unknown>;
+      // Usamos 'any' porque las respuestas específicas (ej. IngresarStockResponse) 
+      // no tienen index signature estricta para Record<string, unknown>.
+      let resultado: any;
 
       switch (accion) {
         case 'INGRESAR_STOCK': {
@@ -381,7 +383,6 @@ export function useAgent(): UseAgentState & UseAgentActions {
 
         case 'INFORMATIVO':
         case 'DAR_DE_BAJA':
-        case 'CONFIRMAR_RECEPCION':
         default:
           // Estas acciones no tienen endpoint directo en inventarioService
           resultado = { success: true, message: 'Acción registrada.' };

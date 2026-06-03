@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Devolucion, Compra, Proveedor, Proxdevc } from "../services/compras-service";
+import { getDevolucionDetails } from "../services/compras-service";
 import type { Bodega, Variante } from "../services/inventario-service";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -123,8 +124,19 @@ export function DevolucionesTab({
     }
   };
 
-  const handleOpenDetail = (dev: Devolucion) => {
-    setSelectedReturn(dev);
+  const handleOpenDetail = async (dev: Devolucion) => {
+    if (dev.id_devcompra_pk) {
+      try {
+        const fullReturn = await getDevolucionDetails(dev.id_devcompra_pk);
+        setSelectedReturn(fullReturn);
+      } catch (e: any) {
+        console.error("Error loading return details", e);
+        toast.error("No se pudo cargar el detalle de la devolución");
+        setSelectedReturn(dev);
+      }
+    } else {
+      setSelectedReturn(dev);
+    }
     setIsDetailOpen(true);
   };
 

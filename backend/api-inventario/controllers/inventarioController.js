@@ -126,3 +126,81 @@ exports.sincronizarCloud = async (req, res) => {
         });
     }
 };
+
+/**
+ * PUT /api/inventario/ajustes/:id/aprobar
+ * Llama al Stored Procedure para aprobar el ajuste y mover inventario físicamente.
+ */
+exports.aprobarAjuste = async (req, res) => {
+    try {
+        const idCabecera = req.params.id;
+        const { idBodega, idVariante, cantidad } = req.body;
+        
+        if (!idCabecera || !idVariante || cantidad == null) {
+            return res.status(400).json({
+                success: false,
+                error: 'Faltan datos obligatorios (idCabecera, idVariante, cantidad).'
+            });
+        }
+
+        const usuario = req.usuarioAutenticado?.usu_nombre ?? req.usuarioAutenticado?.nombre ?? 'Sistema';
+
+        await InventarioModel.aprobarAjusteFisico(
+            idCabecera,
+            idBodega || 1,
+            idVariante,
+            cantidad,
+            usuario
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: `Ajuste (Cabecera: ${idCabecera}) procesado en base de datos transaccional con éxito.`
+        });
+    } catch (error) {
+        console.error('🔥 ERROR EN CONTROLADOR [aprobarAjuste]:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message ?? 'Error interno al aprobar ajuste de stock.'
+        });
+    }
+};
+
+/**
+ * POST /api/inventario/ajustes/pendiente
+ * Crea la cabecera del ajuste con estado PEN y devuelve su ID (UUID).
+ */
+exports.crearCabeceraPendiente = async (req, res) => {
+    try {
+        const { idBodega, idVariante, cantidad, descripcion } = req.body;
+        
+        if (!idVariante || cantidad == null) {
+            return res.status(400).json({
+                success: false,
+                error: 'Faltan datos obligatorios (idVariante, cantidad).'
+            });
+        }
+
+        const usuario = req.usuarioAutenticado?.usu_nombre ?? req.usuarioAutenticado?.nombre ?? 'Sistema';
+
+        const idCabecera = await InventarioModel.crearCabeceraAjustePendiente(
+            idBodega || 1,
+            idVariante,
+            cantidad,
+            usuario,
+            descripcion || "Ajuste/Recepción vía Agente de Voz"
+        );
+
+        return res.status(201).json({
+            success: true,
+            message: "Cabecera pendiente creada con éxito.",
+            id: idCabecera
+        });
+    } catch (error) {
+        console.error('🔥 ERROR EN CONTROLADOR [crearCabeceraPendiente]:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message ?? 'Error interno al crear cabecera pendiente.'
+        });
+    }
+};
