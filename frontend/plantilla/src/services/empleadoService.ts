@@ -15,9 +15,19 @@ export interface Empleado {
   id_departamento?: number | null;
 }
 
+export interface PaginatedResponse<T> {
+  data: T[];
+  totalRecords: number;
+  totalPages: number;
+  currentPage: number;
+}
+
 export const empleadoService = {
-  getEmpleados: async (): Promise<Empleado[]> => {
-    const response = await apiFetch('/empleados');
+  getEmpleados: async (page = 1, limit = 20, search = ''): Promise<PaginatedResponse<Empleado>> => {
+    const query = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (search) query.append('search', search);
+    
+    const response = await apiFetch(`/empleados?${query.toString()}`);
     if (!response.ok) throw new Error('Error al obtener empleados');
     return await response.json();
   },

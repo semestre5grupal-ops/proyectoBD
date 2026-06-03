@@ -1,8 +1,37 @@
 const { pool } = require('../config/db');
 
-const getCargos = async () => {
-  const result = await pool.query('SELECT * FROM cargo');
-  return result.rows;
+const getCargos = async (options = {}) => {
+  const { page = 1, limit = 20, search = '', limitAll = false } = options;
+  
+  if (limitAll) {
+    const result = await pool.query("SELECT id_cargo, car_nombre, car_sueldobase FROM cargo WHERE car_estado != 'INC' ORDER BY car_nombre ASC");
+    return { data: result.rows, totalRecords: result.rows.length };
+  }
+
+  const offset = (page - 1) * limit;
+  let query = "SELECT * FROM cargo WHERE car_estado != 'INC'";
+  const values = [];
+
+  if (search) {
+    query += " AND car_nombre ILIKE $1";
+    values.push(`%${search}%`);
+  }
+
+  const countQuery = `SELECT COUNT(*) FROM (${query}) AS count_query`;
+  const countResult = await pool.query(countQuery, values);
+  const totalRecords = parseInt(countResult.rows[0].count, 10);
+
+  query += " ORDER BY id_cargo DESC LIMIT $" + (values.length + 1) + " OFFSET $" + (values.length + 2);
+  values.push(limit, offset);
+
+  const result = await pool.query(query, values);
+  
+  return {
+    data: result.rows,
+    totalRecords,
+    totalPages: Math.ceil(totalRecords / limit),
+    currentPage: parseInt(page, 10)
+  };
 };
 
 const getCargoById = async (id) => {

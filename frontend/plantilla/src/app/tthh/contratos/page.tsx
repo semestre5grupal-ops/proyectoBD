@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { EmpleadoAsyncSelect } from "@/components/ui/empleado-async-select"
 import { Edit2, Trash2, Plus, FileText, Search } from "lucide-react"
 import { toast } from "sonner"
 
@@ -33,13 +34,23 @@ export default function ContratosPage() {
   
   // Form fields
   const [formData, setFormData] = useState({
-    con_tipo: "Fijo",
+    con_tipo: "F",
     con_fechainicio: "",
-    con_fechafin: "",
-    con_salario: "",
+    con_fecha_fin: "",
+    con_sueldobase: "",
     id_empleado: "",
     id_cargo: ""
   })
+
+  const getTipoLabel = (tipo: string) => {
+    switch(tipo) {
+      case 'I': return 'Indefinido';
+      case 'T': return 'Temporal';
+      case 'P': return 'Servicios Profesionales';
+      case 'O': return 'Por Obra Cierta';
+      default: return tipo;
+    }
+  }
 
   useEffect(() => {
     fetchData()
@@ -48,13 +59,13 @@ export default function ContratosPage() {
   const fetchData = async () => {
     try {
       setLoading(true)
-      const [conData, empData, carData] = await Promise.all([
+      const [conData, carData] = await Promise.all([
         contratoService.getAll(),
-        empleadoService.getEmpleados(),
         cargoService.getAll()
       ])
-      setContratos(Array.isArray(conData) ? conData : [])
-      setEmpleados(Array.isArray(empData) ? empData : [])
+      setContratos(Array.isArray(conData) ? conData.filter((c: Contrato) => c.con_estado !== 'INC') : [])
+      // Empleados are no longer loaded here, they are loaded asynchronously
+      // setEmpleados(Array.isArray(empData) ? empData : [])
       setCargos(Array.isArray(carData) ? carData.filter((c: Cargo) => c.car_estado === 'ACT') : [])
       setCurrentPage(1)
     } catch (err: any) {
@@ -65,8 +76,12 @@ export default function ContratosPage() {
   }
 
   const getEmpleadoName = (id: number) => {
+    // We might not have all employees in memory anymore.
+    // However, we only need it for the table. Let's try to get it if we stored it,
+    // otherwise just fetch it on demand or the backend should ideally join the name.
+    // For now, if we don't have it, we'll return ID or a generic string.
     const emp = empleados.find(e => e.id_empleado === id)
-    return emp ? `${emp.emp_nom1} ${emp.emp_ap1}` : "Desconocido"
+    return emp ? `${emp.emp_nom1} ${emp.emp_ap1}` : `Empleado #${id}`
   }
 
   const getCargoName = (id: number) => {
@@ -77,9 +92,10 @@ export default function ContratosPage() {
   const filteredContratos = contratos.filter(con => {
     const term = searchTerm.toLowerCase()
     const empName = getEmpleadoName(con.id_empleado).toLowerCase()
+    const tipoLabel = getTipoLabel(con.con_tipo).toLowerCase()
     return (
       empName.includes(term) ||
-      con.con_tipo.toLowerCase().includes(term)
+      tipoLabel.includes(term)
     )
   })
 
@@ -95,18 +111,18 @@ export default function ContratosPage() {
       setFormData({
         con_tipo: con.con_tipo,
         con_fechainicio: con.con_fechainicio ? new Date(con.con_fechainicio).toISOString().split('T')[0] : "",
-        con_fechafin: con.con_fechafin ? new Date(con.con_fechafin).toISOString().split('T')[0] : "",
-        con_salario: String(con.con_salario),
+        con_fecha_fin: con.con_fecha_fin ? new Date(con.con_fecha_fin).toISOString().split('T')[0] : "",
+        con_sueldobase: String(con.con_sueldobase),
         id_empleado: String(con.id_empleado),
         id_cargo: String(con.id_cargo)
       })
     } else {
       setEditingCon(null)
       setFormData({
-        con_tipo: "Fijo",
+        con_tipo: "I",
         con_fechainicio: new Date().toISOString().split('T')[0],
-        con_fechafin: "",
-        con_salario: "",
+        con_fecha_fin: "",
+        con_sueldobase: "",
         id_empleado: "",
         id_cargo: ""
       })
@@ -130,25 +146,40 @@ export default function ContratosPage() {
     setFormData(prev => ({
       ...prev,
       id_cargo: cargoId,
-      con_salario: selectedCargo ? String(selectedCargo.car_sueldobase) : prev.con_salario
+      con_sueldobase: selectedCargo ? String(selectedCargo.car_sueldobase) : prev.con_sueldobase
     }));
   }
 
   const handleSave = async () => {
-    if (!formData.id_empleado || !formData.id_cargo || !formData.con_fechainicio || !formData.con_salario) {
+    if (!formData.id_empleado || !formData.id_cargo || !formData.con_fechainicio || !formData.con_sueldobase) {
       toast.error("Por favor completa los campos obligatorios")
       return
     }
 
+    // Validación: Un empleado no puede tener más de un contrato activo
+    if (!editingCon) {
+      const empId = parseInt(formData.id_empleado);
+      const hasActive = contratos.some(c => c.id_empleado === empId && c.con_estado === 'ACT');
+      if (hasActive) {
+        toast.error("Este empleado ya tiene un contrato activo. Debes inactivarlo o finalizarlo antes de crear uno nuevo.");
+        return;
+      }
+    }
+
     try {
-      const data: Contrato = {
+      const data: any = {
         ...(editingCon || {}),
+        con_estado: editingCon ? editingCon.con_estado : "ACT",
+        con_empfechaingreso: formData.con_fechainicio,
         con_tipo: formData.con_tipo,
         con_fechainicio: new Date(formData.con_fechainicio).toISOString(),
-        con_fechafin: formData.con_fechafin ? new Date(formData.con_fechafin).toISOString() : null,
-        con_salario: parseFloat(formData.con_salario),
+        con_fecha_fin: formData.con_fecha_fin ? new Date(formData.con_fecha_fin).toISOString() : null,
+        con_sueldobase: parseFloat(formData.con_sueldobase),
         id_empleado: parseInt(formData.id_empleado),
-        id_cargo: parseInt(formData.id_cargo)
+        id_cargo: parseInt(formData.id_cargo),
+        con_mensualiza_d3: false,
+        con_mensualiza_d4: false,
+        con_mensualiza_fr: false
       }
 
       if (editingCon && editingCon.id_contrato) {
@@ -242,12 +273,12 @@ export default function ContratosPage() {
                       <TableCell>{getCargoName(con.id_cargo)}</TableCell>
                       <TableCell>
                         <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset bg-purple-50 text-purple-700 ring-purple-600/20">
-                          {con.con_tipo}
+                          {getTipoLabel(con.con_tipo)}
                         </span>
                       </TableCell>
-                      <TableCell>${Number(con.con_salario).toFixed(2)}</TableCell>
+                      <TableCell>${Number(con.con_sueldobase).toFixed(2)}</TableCell>
                       <TableCell>{new Date(con.con_fechainicio).toLocaleDateString()}</TableCell>
-                      <TableCell>{con.con_fechafin ? new Date(con.con_fechafin).toLocaleDateString() : 'Indefinido'}</TableCell>
+                      <TableCell>{con.con_fecha_fin ? new Date(con.con_fecha_fin).toLocaleDateString() : 'Indefinido'}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => handleOpenModal(con)}>
                           <Edit2 size={16} className="text-blue-500" />
@@ -272,23 +303,21 @@ export default function ContratosPage() {
             <DialogTitle>{editingCon ? "Editar Contrato" : "Nuevo Contrato"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="id_empleado">Empleado *</Label>
-              <select 
-                id="id_empleado" 
-                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
-                value={formData.id_empleado}
-                onChange={handleInputChange as any}
-                disabled={!!editingCon} // Un contrato suele amarrarse a un empleado y no cambiarlo
-              >
-                <option value="">Seleccione un empleado...</option>
-                {empleados.map(emp => (
-                  <option key={emp.id_empleado} value={emp.id_empleado}>
-                    {emp.emp_nom1} {emp.emp_ap1} - {emp.emp_cedula}
-                  </option>
-                ))}
-              </select>
-            </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="id_empleado" className="text-right">Empleado</Label>
+                <div className="col-span-3">
+                  <EmpleadoAsyncSelect 
+                    value={formData.id_empleado}
+                    onChange={(id, emp) => {
+                      setFormData(prev => ({ ...prev, id_empleado: id }))
+                      // Optionally store the selected employee in the employees array so getEmpleadoName works
+                      if (emp && !empleados.find(e => e.id_empleado === emp.id_empleado)) {
+                        setEmpleados(prev => [...prev, emp])
+                      }
+                    }}
+                  />
+                </div>
+              </div>
             
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
@@ -315,16 +344,17 @@ export default function ContratosPage() {
                   value={formData.con_tipo}
                   onChange={handleInputChange as any}
                 >
-                  <option value="Fijo">Fijo</option>
-                  <option value="Temporal">Temporal</option>
-                  <option value="Servicios Profesionales">Servicios Profesionales</option>
+                  <option value="I">Indefinido</option>
+                  <option value="T">Temporal</option>
+                  <option value="P">Servicios Profesionales</option>
+                  <option value="O">Por Obra Cierta</option>
                 </select>
               </div>
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="con_salario">Salario Mensual ($) *</Label>
-              <Input type="number" step="0.01" id="con_salario" value={formData.con_salario} onChange={handleInputChange} />
+              <Label htmlFor="con_sueldobase">Salario Mensual ($) *</Label>
+              <Input type="number" step="0.01" id="con_sueldobase" value={formData.con_sueldobase} onChange={handleInputChange} />
               <p className="text-[10px] text-muted-foreground">Al cambiar el cargo se sugiere su sueldo base automáticamente.</p>
             </div>
 
@@ -334,8 +364,8 @@ export default function ContratosPage() {
                 <Input type="date" id="con_fechainicio" value={formData.con_fechainicio} onChange={handleInputChange} />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="con_fechafin">Fecha Fin (Opcional)</Label>
-                <Input type="date" id="con_fechafin" value={formData.con_fechafin} onChange={handleInputChange} />
+                <Label htmlFor="con_fecha_fin">Fecha Fin (Opcional)</Label>
+                <Input type="date" id="con_fecha_fin" value={formData.con_fecha_fin} onChange={handleInputChange} />
               </div>
             </div>
           </div>

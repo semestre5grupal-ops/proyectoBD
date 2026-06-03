@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Edit2, Trash2, Plus, FileSignature, Search } from "lucide-react"
+import { Edit2, Trash2, Plus, FileSignature, Search, CheckCircle, XCircle } from "lucide-react"
 import { toast } from "sonner"
 
 export default function PermisosPage() {
@@ -29,7 +29,7 @@ export default function PermisosPage() {
     id_empleado: "",
     per_fecha_inicio: "",
     per_fecha_fin: "",
-    per_estado: "Aprobado",
+    per_estado: "PEN",
     per_observacion: ""
   })
 
@@ -49,7 +49,7 @@ export default function PermisosPage() {
         ? perData.sort((a, b) => new Date(b.per_fecha_inicio).getTime() - new Date(a.per_fecha_inicio).getTime())
         : []
         
-      setPermisos(sortedPer)
+      setPermisos(Array.isArray(perData) ? perData.filter((p: Permiso) => p.per_estado !== 'INC' && p.per_estado !== 'INA') : [])
       setEmpleados(Array.isArray(empData) ? empData : [])
       setCurrentPage(1)
     } catch (err: any) {
@@ -64,13 +64,24 @@ export default function PermisosPage() {
     return emp ? `${emp.emp_nom1} ${emp.emp_ap1}` : "Desconocido"
   }
 
+  const getEstadoLabel = (estado: string) => {
+    switch (estado) {
+      case 'PEN': return 'Pendiente';
+      case 'APR': return 'Aprobado';
+      case 'REC': return 'Rechazado';
+      case 'REZ': return 'Rechazado';
+      default: return estado;
+    }
+  }
+
   const filteredPermisos = permisos.filter(per => {
     const term = searchTerm.toLowerCase()
     const empName = getEmpleadoName(per.id_empleado).toLowerCase()
+    const estadoLabel = getEstadoLabel(per.per_estado).toLowerCase()
     return (
       empName.includes(term) ||
-      per.per_estado.toLowerCase().includes(term) ||
-      per.per_observacion.toLowerCase().includes(term)
+      estadoLabel.includes(term) ||
+      per.per_observacion?.toLowerCase().includes(term)
     )
   })
 
@@ -97,7 +108,7 @@ export default function PermisosPage() {
         id_empleado: "",
         per_fecha_inicio: now.toISOString().split('T')[0],
         per_fecha_fin: now.toISOString().split('T')[0],
-        per_estado: "Aprobado",
+        per_estado: "PEN",
         per_observacion: ""
       })
     }
@@ -121,12 +132,12 @@ export default function PermisosPage() {
     }
 
     try {
-      const data: Permiso = {
+      const data: any = {
         ...(editingPermiso || {}),
         id_empleado: parseInt(formData.id_empleado),
-        per_fecha_inicio: new Date(formData.per_fecha_inicio).toISOString(),
-        per_fecha_fin: new Date(formData.per_fecha_fin).toISOString(),
-        per_estado: formData.per_estado,
+        per_fecha_inicio: formData.per_fecha_inicio,
+        per_fecha_fin: formData.per_fecha_fin,
+        per_estado: editingPermiso ? editingPermiso.per_estado : "PEN",
         per_observacion: formData.per_observacion
       }
 
@@ -156,6 +167,32 @@ export default function PermisosPage() {
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al eliminar"))
+    }
+  }
+
+  const handleApprove = async (per: Permiso) => {
+    if (!per.id_permiso) return
+    if (!confirm(`¿Seguro que deseas Aprobar el permiso de ${getEmpleadoName(per.id_empleado)}?`)) return
+    try {
+      await permisoService.update(per.id_permiso, { ...per, per_estado: 'APR' })
+      toast.success("Permiso aprobado")
+      fetchData()
+    } catch (err: any) {
+      console.error(err)
+      toast.error("Error al aprobar: " + (err.message || "Ocurrió un error"))
+    }
+  }
+
+  const handleReject = async (per: Permiso) => {
+    if (!per.id_permiso) return
+    if (!confirm(`¿Seguro que deseas Rechazar el permiso de ${getEmpleadoName(per.id_empleado)}?`)) return
+    try {
+      await permisoService.update(per.id_permiso, { ...per, per_estado: 'REZ' })
+      toast.success("Permiso rechazado")
+      fetchData()
+    } catch (err: any) {
+      console.error(err)
+      toast.error("Error al rechazar: " + (err.message || "Ocurrió un error"))
     }
   }
 
@@ -227,20 +264,30 @@ export default function PermisosPage() {
                         </TableCell>
                         <TableCell>
                           <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset ${
-                            per.per_estado === 'Aprobado' 
+                            per.per_estado === 'APR' || per.per_estado === 'Aprobado'
                               ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' 
-                              : per.per_estado === 'Rechazado'
+                              : per.per_estado === 'REZ' || per.per_estado === 'REC' || per.per_estado === 'Rechazado'
                               ? 'bg-red-50 text-red-700 ring-red-600/20'
                               : 'bg-yellow-50 text-yellow-700 ring-yellow-600/20'
                           }`}>
-                            {per.per_estado}
+                            {getEstadoLabel(per.per_estado)}
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" onClick={() => handleOpenModal(per)}>
+                          {(per.per_estado === 'PEN' || per.per_estado === 'Pendiente') && (
+                            <>
+                              <Button variant="ghost" size="icon" title="Aprobar" onClick={() => handleApprove(per)}>
+                                <CheckCircle size={16} className="text-emerald-600" />
+                              </Button>
+                              <Button variant="ghost" size="icon" title="Rechazar" onClick={() => handleReject(per)}>
+                                <XCircle size={16} className="text-red-500" />
+                              </Button>
+                            </>
+                          )}
+                          <Button variant="ghost" size="icon" title="Editar" onClick={() => handleOpenModal(per)}>
                             <Edit2 size={16} className="text-blue-500" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(per)}>
+                          <Button variant="ghost" size="icon" title="Eliminar" onClick={() => handleDelete(per)}>
                             <Trash2 size={16} className="text-red-500" />
                           </Button>
                         </TableCell>
@@ -287,20 +334,6 @@ export default function PermisosPage() {
                 <Label htmlFor="per_fecha_fin">Hasta *</Label>
                 <Input type="date" id="per_fecha_fin" value={formData.per_fecha_fin} onChange={handleInputChange} />
               </div>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="per_estado">Estado *</Label>
-              <select 
-                id="per_estado" 
-                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
-                value={formData.per_estado}
-                onChange={handleInputChange as any}
-              >
-                <option value="Pendiente">Pendiente</option>
-                <option value="Aprobado">Aprobado</option>
-                <option value="Rechazado">Rechazado</option>
-              </select>
             </div>
 
             <div className="grid gap-2">

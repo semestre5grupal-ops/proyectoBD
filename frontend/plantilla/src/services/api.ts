@@ -31,7 +31,8 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
   response.json = async () => {
     const jsonBody = await originalJson();
     if (jsonBody && typeof jsonBody === 'object' && 'success' in jsonBody && 'data' in jsonBody) {
-      return jsonBody.data;
+      const { success, ...rest } = jsonBody;
+      return Object.keys(rest).length === 1 ? rest.data : rest;
     }
     return jsonBody;
   };

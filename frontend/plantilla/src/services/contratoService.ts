@@ -4,8 +4,9 @@ export interface Contrato {
   id_contrato?: number;
   con_tipo: string;
   con_fechainicio: string;
-  con_fechafin?: string | null;
-  con_salario: number;
+  con_fecha_fin?: string | null;
+  con_sueldobase: number;
+  con_estado?: string;
   id_empleado: number;
   id_cargo: number;
 }

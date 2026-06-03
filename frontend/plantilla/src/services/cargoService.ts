@@ -9,11 +9,28 @@ export interface Cargo {
   car_estado?: string;
 }
 
+export interface PaginatedResponse<T> {
+  data: T[];
+  totalRecords: number;
+  totalPages: number;
+  currentPage: number;
+}
+
 export const cargoService = {
-  getAll: async (): Promise<Cargo[]> => {
-    const response = await apiFetch('/cargo');
+  getAll: async (page = 1, limit = 20, search = ''): Promise<PaginatedResponse<Cargo>> => {
+    const query = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (search) query.append('search', search);
+    
+    const response = await apiFetch(`/cargo?${query.toString()}`);
     if (!response.ok) throw new Error('Error al obtener cargos');
     return await response.json();
+  },
+
+  getAllList: async (): Promise<Cargo[]> => {
+    const response = await apiFetch('/cargo?limit=all');
+    if (!response.ok) throw new Error('Error al obtener cargos');
+    const res = await response.json();
+    return res.data || res;
   },
 
   getById: async (id: number) => {

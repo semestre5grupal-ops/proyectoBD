@@ -8,11 +8,28 @@ export interface Periodo {
   per_estado: string;
 }
 
+export interface PaginatedResponse<T> {
+  data: T[];
+  totalRecords: number;
+  totalPages: number;
+  currentPage: number;
+}
+
 export const periodoService = {
-  getAll: async (): Promise<Periodo[]> => {
-    const response = await apiFetch('/periodo');
+  getAll: async (page = 1, limit = 20, search = ''): Promise<PaginatedResponse<Periodo>> => {
+    const query = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (search) query.append('search', search);
+    
+    const response = await apiFetch(`/periodo?${query.toString()}`);
     if (!response.ok) throw new Error('Error al obtener periodos');
     return await response.json();
+  },
+
+  getAllList: async (): Promise<Periodo[]> => {
+    const response = await apiFetch('/periodo?limit=all');
+    if (!response.ok) throw new Error('Error al obtener periodos');
+    const res = await response.json();
+    return res.data || res;
   },
 
   getById: async (id: number) => {

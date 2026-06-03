@@ -32,8 +32,8 @@ export default function PeriodosPage() {
   const fetchData = async () => {
     try {
       setLoading(true)
-      const data = await periodoService.getAll()
-      setPeriodos(Array.isArray(data) ? data : [])
+      const res = await periodoService.getAll(1, 1000)
+      setPeriodos(Array.isArray(res.data) ? res.data.filter((p: Periodo) => p.per_estado !== 'INC') : [])
     } catch (err: any) {
       setError(err.message || "Error al cargar datos")
     } finally {

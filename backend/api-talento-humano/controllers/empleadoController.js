@@ -2,8 +2,9 @@ const Empleado = require('../models/empleadoModel');
 
 const getAllEmpleados = async (req, res) => {
   try {
-    const empleados = await Empleado.getEmpleados();
-    res.status(200).json({ success: true, data: empleados });
+    const { page, limit, search } = req.query;
+    const result = await Empleado.getEmpleados({ page, limit, search });
+    res.status(200).json({ success: true, ...result });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

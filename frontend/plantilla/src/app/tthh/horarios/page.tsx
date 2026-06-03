@@ -36,7 +36,7 @@ export default function HorariosPage() {
     try {
       setLoading(true)
       const data = await horarioService.getAll()
-      setHorarios(Array.isArray(data) ? data : [])
+      setHorarios(Array.isArray(data) ? data.filter((h: Horario) => h.hor_estado !== 'INC') : [])
       setCurrentPage(1)
     } catch (err: any) {
       setError(err.message || "Error al cargar datos")
@@ -92,7 +92,9 @@ export default function HorariosPage() {
       const data: Horario = {
         ...(editingHorario || {}),
         hor_nombre_horario: formData.hor_nombre_horario,
-        hor_horastotal: parseFloat(formData.hor_horastotal)
+        hor_horastotal: parseFloat(formData.hor_horastotal),
+        hor_tipo: formData.hor_tipo,
+        hor_estado: editingHorario ? editingHorario.hor_estado : "ACT"
       }
 
       if (editingHorario && editingHorario.id_horario) {
@@ -165,13 +167,14 @@ export default function HorariosPage() {
                 <TableRow>
                   <TableHead>Nombre del Horario</TableHead>
                   <TableHead>Horas Totales</TableHead>
+                  <TableHead>Tipo</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {currentHorarios.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center h-24 text-muted-foreground">
+                    <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
                       No hay horarios registrados.
                     </TableCell>
                   </TableRow>
@@ -180,6 +183,7 @@ export default function HorariosPage() {
                     <TableRow key={hor.id_horario}>
                       <TableCell className="font-medium">{hor.hor_nombre_horario}</TableCell>
                       <TableCell>{hor.hor_horastotal} hrs</TableCell>
+                      <TableCell>{hor.hor_tipo}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => handleOpenModal(hor)}>
                           <Edit2 size={16} className="text-blue-500" />
