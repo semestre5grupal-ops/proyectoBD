@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Compra, Proveedor, Proxoc } from "../services/compras-service";
 import type { Variante } from "../services/inventario-service";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Eye, Check, X, Search, ShoppingCart, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { CompraDetailModal } from "./compra-detail-modal";
+import { getRolCompras } from "../utils/rbac";
 
 interface OrdenesTabProps {
   orders: Compra[];
@@ -18,6 +20,7 @@ interface OrdenesTabProps {
   variants: Variante[];
   onCreateOrder: (order: Compra) => Promise<boolean>;
   onUpdateOrderStatus: (id: number, status: 'ABI' | 'APR' | 'ANU') => Promise<boolean>;
+  onUpdateOrder: (id: number, order: Compra) => Promise<boolean>;
 }
 
 export function OrdenesTab({
@@ -25,12 +28,18 @@ export function OrdenesTab({
   suppliers,
   variants,
   onCreateOrder,
-  onUpdateOrderStatus
+  onUpdateOrderStatus,
+  onUpdateOrder
 }: OrdenesTabProps) {
   const [search, setSearch] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Compra | null>(null);
+  const [role, setRole] = useState<'JEFE' | 'AUX' | 'OPER' | 'NONE'>('NONE');
+
+  useEffect(() => {
+    setRole(getRolCompras());
+  }, []);
 
   // Creator Form state
   const [proveedorId, setProveedorId] = useState("");
@@ -208,7 +217,7 @@ export function OrdenesTab({
                           <Button variant="ghost" size="icon" onClick={() => handleOpenDetail(order)}>
                             <Eye className="h-4 w-4" />
                           </Button>
-                          {order.oc_estado === 'ABI' && (
+                          {order.oc_estado === 'ABI' && role === 'JEFE' && (
                             <>
                               <Button
                                 variant="outline"
@@ -410,75 +419,15 @@ export function OrdenesTab({
       </Dialog>
 
       {/* 2. Detail Dialog */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          {selectedOrder && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Detalle de Orden de Compra #{selectedOrder.id_compra}</DialogTitle>
-                <DialogDescription>
-                  Revisión de los productos solicitados y estado actual.
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="grid gap-4 py-2">
-                <div className="grid grid-cols-2 text-sm">
-                  <div>
-                    <span className="text-muted-foreground block text-xs">Proveedor</span>
-                    <span className="font-semibold">
-                      {suppliers.find(s => s.id_proveedor === selectedOrder.id_proveedor)?.prv_nombre || `ID: ${selectedOrder.id_proveedor}`}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground block text-xs">Fecha Emisión</span>
-                    <span className="font-semibold">
-                      {selectedOrder.oc_fecha ? new Date(selectedOrder.oc_fecha).toLocaleDateString() : ""}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="border rounded-lg mt-2 max-h-[250px] overflow-y-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Producto</TableHead>
-                        <TableHead>Cantidad</TableHead>
-                        <TableHead>Costo Unitario</TableHead>
-                        <TableHead className="text-right">Subtotal</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {selectedOrder.items?.map((item, idx) => {
-                        const variantName = variants.find(v => v.id_variante === item.id_variante)?.var_nombre || `Variante: ${item.id_variante}`;
-                        return (
-                          <TableRow key={idx}>
-                            <TableCell>{variantName}</TableCell>
-                            <TableCell>{item.pxo_cantidad}</TableCell>
-                            <TableCell>${Number(item.pxo_valor).toFixed(2)}</TableCell>
-                            <TableCell className="text-right font-medium">
-                              ${((item.pxo_subtotal) ? item.pxo_subtotal : (item.pxo_cantidad * item.pxo_valor)).toFixed(2)}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                <div className="flex flex-col items-end gap-1 text-sm font-semibold pr-2 mt-2">
-                  <div>Subtotal: <span className="text-muted-foreground">${Number(selectedOrder.oc_subtotal).toFixed(2)}</span></div>
-                  <div>IVA ({selectedOrder.oc_iva}%): <span className="text-muted-foreground">${(Number(selectedOrder.oc_total) - Number(selectedOrder.oc_subtotal)).toFixed(2)}</span></div>
-                  <div className="text-base font-bold text-primary border-t pt-1">Total: <span>${Number(selectedOrder.oc_total).toFixed(2)}</span></div>
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button onClick={() => setIsDetailOpen(false)}>Cerrar</Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      <CompraDetailModal
+        isOpen={isDetailOpen}
+        onOpenChange={setIsDetailOpen}
+        order={selectedOrder}
+        suppliers={suppliers}
+        variants={variants}
+        onUpdateOrderStatus={onUpdateOrderStatus}
+        onUpdateOrder={onUpdateOrder}
+      />
     </div>
   );
 }

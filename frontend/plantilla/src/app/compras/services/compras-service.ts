@@ -181,6 +181,17 @@ export const updateCompraEstado = async (id: number, estado: 'ABI' | 'APR' | 'AN
   return json;
 };
 
+export const updateCompra = async (id: number, compra: Compra): Promise<Compra> => {
+  const res = await fetch(`${API_BASE_URL}/api/compras/${id}`, {
+    method: "PUT",
+    headers: getHeaders(),
+    body: JSON.stringify(compra)
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || "Failed to update purchase order");
+  return json.data;
+};
+
 // 4. Recepciones API
 export const getRecepciones = async (): Promise<Recepcion[]> => {
   const res = await fetch(`${API_BASE_URL}/api/recepciones`, { headers: getHeaders() });

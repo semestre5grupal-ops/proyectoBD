@@ -142,6 +142,18 @@ export function useCompras() {
     }
   };
 
+  const handleUpdateOrder = async (id: number, order: comprasService.Compra) => {
+    try {
+      await comprasService.updateCompra(id, order);
+      toast.success("Orden de compra actualizada con éxito");
+      await fetchOrders();
+      return true;
+    } catch (e: any) {
+      toast.error(e.message || "Error al actualizar la orden de compra");
+      return false;
+    }
+  };
+
   const handleCreateReception = async (reception: comprasService.Recepcion) => {
     try {
       // 1. Create the reception in api-compras
@@ -248,6 +260,7 @@ export function useCompras() {
     handleCreateSupplier,
     handleUpdateSupplier,
     handleCreateOrder,
+    handleUpdateOrder,
     handleUpdateOrderEstado,
     handleCreateReception,
     handleApproveReception,
