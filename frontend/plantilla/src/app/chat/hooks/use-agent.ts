@@ -38,6 +38,9 @@ import {
   consultarStock,
   sincronizarCloud,
   crearNotificacionTarea,
+  marcarNotificacionEjecutada,
+  aprobarAjusteCabecera,
+  crearAjusteCabeceraPendiente,
 } from '@/services/inventarioService';
 import {
   SYSTEM_PROMPTS,
@@ -328,7 +331,9 @@ export function useAgent(): UseAgentState & UseAgentActions {
     }
 
     try {
-      let resultado: Record<string, unknown>;
+      // Usamos 'any' porque las respuestas específicas (ej. IngresarStockResponse) 
+      // no tienen index signature estricta para Record<string, unknown>.
+      let resultado: any;
 
       switch (accion) {
         case 'INGRESAR_STOCK': {
@@ -349,13 +354,69 @@ export function useAgent(): UseAgentState & UseAgentActions {
           break;
         }
 
-        case 'CREAR_PRODUCTO':
+        case 'CONFIRMAR_RECEPCION': {
+          console.log("PAYLOAD A EJECUTAR:", payload);
+          
+          const p = payload as Record<string, any>;
+          const idVariante = Number(p.idVariante || p.id_variante || 1);
+          const idBodega = Number(p.idBodega || p.id_bodega || 1); // Si es null, fuerza la Bodega 1 por defecto
+          const cantidadAbsoluta = Math.abs(Number(p.cantidad || p.cant || 0));
+          const descripcion = p.descripcion || "Ajuste procesado por el Agente de Voz";
+          const usuario = p.usuario || nombreUsuario;
+
+          console.log("🚀 Disparando actualización de stock local para variante:", idVariante);
+
+          // Ejecutar inventario real (el Jefe autoriza un ajuste que viene de la tarjeta, 
+          // o el Operativo confirma recepción y se suma al stock).
+          const cantidadOriginal = Number(p.cantidad || p.cant || 0);
+          
+          if (cantidadOriginal >= 0) {
+            resultado = await ingresarStock({
+              idVariante,
+              cantidad: cantidadAbsoluta,
+              idBodega,
+              descripcion,
+              usuario,
+            });
+          } else {
+            // cantidad es menor a 0
+            resultado = await descontarStock(
+              idVariante, 
+              cantidadAbsoluta
+            );
+          }
+          break;
+        }
+
         case 'AUTORIZAR_AJUSTE': {
-          // El Jefe delega — estas acciones NO ejecutan stock directamente.
-          // Solo persisten la notificación en el backend (ya ocurrió al llamar
-          // ingresarStock del Jefe, o se deja pendiente para el Operativo).
-          // Resultado exitoso sin impacto inmediato en stock.
-          resultado = { success: true, message: 'Tarea delegada al Operativo de Inventario.' };
+          console.log("PAYLOAD A EJECUTAR (AUTORIZAR_AJUSTE):", payload);
+          
+          const p = payload as Record<string, any>;
+          const idCabecera = p.idCabecera || p.id_cabecera;
+          
+          if (!idCabecera) {
+             throw new Error("No se encontró el idCabecera en el payload para autorizar el ajuste.");
+          }
+
+          const idVariante = Number(p.idVariante || p.id_variante || 1);
+          const idBodega = Number(p.idBodega || p.id_bodega || 1);
+          const cantidadOriginal = Number(p.cantidad || p.cant || 0);
+
+          console.log("🚀 Disparando aprobación de ajuste RPC para cabecera:", idCabecera);
+
+          resultado = await aprobarAjusteCabecera(idCabecera, {
+            ...p,
+            idBodega,
+            idVariante,
+            cantidad: cantidadOriginal
+          });
+          break;
+        }
+
+        case 'CREAR_PRODUCTO': {
+          // El Jefe delega — estas acciones NO ejecutan stock directamente en este punto.
+          // Solo persisten la notificación en el backend (ya ocurrió al delegar).
+          resultado = { success: true, message: 'Tarea delegada correctamente.' };
           break;
         }
 
@@ -381,7 +442,6 @@ export function useAgent(): UseAgentState & UseAgentActions {
 
         case 'INFORMATIVO':
         case 'DAR_DE_BAJA':
-        case 'CONFIRMAR_RECEPCION':
         default:
           // Estas acciones no tienen endpoint directo en inventarioService
           resultado = { success: true, message: 'Acción registrada.' };
@@ -391,6 +451,18 @@ export function useAgent(): UseAgentState & UseAgentActions {
       // Liberar la tarea pendiente del ref al ejecutar
       if (pendingTaskRef.current?.id === tarea.id) {
         pendingTaskRef.current = null;
+      }
+
+      // Si la tarea era una notificación pendiente traída del backend, la marcamos como ejecutada
+      // ÚNICAMENTE si la función de stock de arriba se ejecutó con éxito (Response 200).
+      // Como estamos dentro de un try, si ingresarStock/descontarStock fallaron,
+      // el flujo habría saltado al catch y esta línea no se ejecutaría.
+      if (tarea.id.length !== 36) { // Si no es un UUID autogenerado localmente (sino de la BD)
+        try {
+          await marcarNotificacionEjecutada(tarea.id);
+        } catch (err) {
+          console.warn('[useAgent] Error no crítico al cerrar la notificación:', err);
+        }
       }
 
       // ── Actualizar estado de la tarea a 'ejecutada' ──────────────────────
@@ -535,10 +607,30 @@ export function useAgent(): UseAgentState & UseAgentActions {
       // Si la tarea va dirigida a otro rol, persistir en Supabase vía POST /tareas
       // y mostrar solo un mensaje informativo (sin botones de Confirmar).
       if (tarea.rol_destino && tarea.rol_destino !== rolActivo) {
+        
+        // a.1) Si es AUTORIZAR_AJUSTE (El Auxiliar dicta el ajuste), creamos la cabecera pendiente primero
+        if (tarea.accion === 'AUTORIZAR_AJUSTE') {
+          try {
+            const payloadRecord = tarea.payload as Record<string, any>;
+            const resCabecera = await crearAjusteCabeceraPendiente(payloadRecord);
+            if (resCabecera.success && resCabecera.id != null) {
+               payloadRecord.idCabecera = resCabecera.id;
+               tarea.payload = payloadRecord;
+            } else {
+               throw new Error(resCabecera.message || "Fallo desconocido al crear cabecera pendiente.");
+            }
+          } catch(err) {
+            console.error('🔥 ERROR: No se pudo crear la cabecera pendiente. Abortando delegación:', err);
+            throw err; // Lanza el error para evitar que se cree la notificación sin UUID
+          }
+        }
+
         // a) Persistir la notificación en el backend (fire-and-forget amigable)
         crearNotificacionTarea({
           accion: tarea.accion,
           mensaje_usuario: tarea.mensaje_usuario,
+          instruccion_original: tarea.instruccion_original,
+          usuario_origen: nombreUsuario,
           rol_origen: rolActivo,
           rol_destino: tarea.rol_destino,
           payload_json: tarea.payload as Record<string, unknown>,
@@ -745,6 +837,36 @@ export function useAgent(): UseAgentState & UseAgentActions {
     });
   }, [agregarMensaje]);
 
+  /**
+   * Inyecta una TaskCard directamente en el chat para tareas pendientes obtenidas del backend.
+   * La primera tarea inyectada se asigna a pendingTaskRef para soporte de confirmación por voz.
+   */
+  const inyectarTaskCardAgente = useCallback((tareaBase: Omit<TareaInventario, 'id' | 'timestamp' | 'confirmacion_requerida'> & { id?: string }) => {
+    const tarea: TareaInventario = {
+      ...tareaBase,
+      id: tareaBase.id || uuidv4(),
+      timestamp: new Date().toISOString(),
+      confirmacion_requerida: true,
+      estado: 'pendiente'
+    };
+
+    agregarMensaje({
+      id: `msg-task-${tarea.id}`,
+      content: tarea.mensaje_usuario,
+      timestamp: tarea.timestamp,
+      senderId: 'agent',
+      type: 'task_card',
+      isEdited: false,
+      reactions: [],
+      replyTo: null,
+      tarea,
+    });
+
+    if (!pendingTaskRef.current) {
+      pendingTaskRef.current = tarea;
+    }
+  }, [agregarMensaje]);
+
   return {
     // State
     mensajes,
@@ -761,6 +883,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
     cancelarGeneracion,
     limpiarError,
     inyectarMensajeAgente,
+    inyectarTaskCardAgente,
   };
 }
 

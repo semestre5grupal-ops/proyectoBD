@@ -111,6 +111,71 @@ const InventarioModel = {
                 })
             };
         });
+    },
+
+    crearCabeceraAjustePendiente: async (idBodega, idVariante, cantidad, usuario, descripcion) => {
+        // 1. Insertar Cabecera en la tabla 'ajustes'
+        const { data: cabecera, error: errCabecera } = await supabase
+            .from('ajustes')
+            .insert({
+                id_bodega: Number(idBodega),
+                aju_fechahora: new Date().toISOString(),
+                aju_descripcion: descripcion,
+                aju_num_produc_: 1,
+                usu_responsable: usuario,
+                aju_estado: 'PEN'
+            })
+            .select('id_ajuste')
+            .single();
+
+        if (errCabecera) {
+            console.error('🔥 ERROR SUPABASE [crearCabeceraAjustePendiente - ajustes]:', errCabecera);
+            throw new Error(errCabecera.message);
+        }
+
+        const idInsertado = cabecera.id_ajuste;
+
+        // 2. Insertar Detalle en la tabla 'proxaju'
+        const qty = Number(cantidad);
+        const { error: errDetalle } = await supabase
+            .from('proxaju')
+            .insert({
+                id_variante: Number(idVariante),
+                id_ajuste: idInsertado,
+                pxa_stock_sistema: 0,
+                pxa_stock_fisico_real: qty,
+                pxa_qty_ajustada: qty,
+                pxa_tipo_ajuste: qty > 0 ? 'I' : 'E',
+                pxa_motivo_ajuste: descripcion,
+                pxa_estado: 'PEN'
+            });
+
+        if (errDetalle) {
+            console.error('🔥 ERROR SUPABASE [crearCabeceraAjustePendiente - proxaju]:', errDetalle);
+            throw new Error(errDetalle.message);
+        }
+
+        return idInsertado; // Retorna el Número Entero (SERIAL)
+    },
+
+    aprobarAjusteFisico: async (idCabecera, idBodega, idVariante, cantidad, usuario) => {
+        const periodo = new Date().toISOString().slice(0, 7);
+        
+        const { data, error } = await supabase.rpc('fn_aprobar_ajuste_inventario', {
+            p_id_cabecera: Number(idCabecera),
+            p_id_bodega: Number(idBodega),
+            p_id_variante: Number(idVariante),
+            p_cantidad: Number(cantidad),
+            p_usuario: usuario,
+            p_periodo: periodo
+        });
+
+        if (error) {
+            console.error('🔥 ERROR SUPABASE RPC [fn_aprobar_ajuste_inventario]:', error);
+            throw new Error(error.message);
+        }
+
+        return data;
     }
 };
 

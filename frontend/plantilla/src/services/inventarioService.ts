@@ -16,14 +16,16 @@
  *  ✅ Inyecta Authorization: Bearer <TOKEN> en todas las peticiones.
  *  ✅ Usa la misma clave localStorage('jwt_token') de authService (Alejandro).
  *  ✅ Ante 401/403 elimina el token y redirige a /auth/sign-in (espeja api.ts).
- *  ✅ Lee la URL base desde VITE_API_INVENTARIO con fallback a la URL de Render.
+ *  ✅ Lee la URL base desde VITE_API_INVENTARIO con fallback a localhost:4000 (desarrollo).
  */
 
-// ─── URL base del microservicio de Inventario ─────────────────────────────────
-// Lee la variable de entorno declarada en .env; si no existe usa la URL de Render.
+// ─── URL base del microservicio de Inventario ───────────────────────────────────────────────
+// Lee VITE_API_INVENTARIO del .env de Vite.
+// Fallback: http://localhost:4000 (ambiente de desarrollo local).
+// NUNCA usar URLs de producción hardcodeadas aquí — cambiar el .env para producir.
 const API_BASE_URL =
   (import.meta.env.VITE_API_INVENTARIO as string | undefined) ??
-  "https://api-inventario-1r1w.onrender.com";
+  "http://localhost:4000";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TIPOS — Contratos de Request y Response según CONTEXTO_ACTUAL_PROYECTO.md
@@ -203,8 +205,14 @@ export async function sincronizarCloud(): Promise<SincronizarCloudResponse> {
 
 /** Payload para POST /api/inventario/tareas */
 export interface NotificacionTareaPayload {
+  /** AccionInventario generada por Ollama */
   accion: string;
+  /** Texto del mensaje de Ollama para el destinatario → se guarda en 'respuesta_ia' */
   mensaje_usuario: string;
+  /** Instrucción original del usuario → se guarda en 'instruccion_original' */
+  instruccion_original?: string;
+  /** Nombre del usuario que originó la tarea → se guarda en 'usuario_origen' */
+  usuario_origen?: string;
   rol_origen: string;
   rol_destino: string;
   payload_json?: Record<string, unknown>;
@@ -230,5 +238,52 @@ export async function crearNotificacionTarea(
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+/**
+ * Marca una notificación como ejecutada en el backend.
+ *
+ * Endpoint: PUT /api/inventario/tareas/:id/estado
+ */
+export async function marcarNotificacionEjecutada(
+  id: string
+): Promise<ApiBaseResponse> {
+  return apiFetch<ApiBaseResponse>(`/api/inventario/tareas/${id}/estado`, {
+    method: "PUT",
+    body: JSON.stringify({ estado: "ejecutada" }),
+  });
+}
+
+/**
+ * Aprueba un ajuste de inventario invocando un Stored Procedure en Supabase.
+ *
+ * Endpoint: PUT /api/inventario/ajustes/:id/aprobar
+ */
+export async function aprobarAjusteCabecera(
+  idCabecera: number | string,
+  payload: Record<string, any>
+): Promise<ApiBaseResponse> {
+  return apiFetch<ApiBaseResponse>(`/api/inventario/ajustes/${idCabecera}/aprobar`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Crea la cabecera de ajuste en estado Pendiente.
+ * Devuelve el ID generado por la BD.
+ *
+ * Endpoint: POST /api/inventario/ajustes/pendiente
+ */
+export async function crearAjusteCabeceraPendiente(
+  payload: Record<string, any>
+): Promise<{ success: boolean; message: string; id: string | number }> {
+  return apiFetch<{ success: boolean; message: string; id: string | number }>(
+    "/api/inventario/ajustes/pendiente",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }
+  );
 }
 
