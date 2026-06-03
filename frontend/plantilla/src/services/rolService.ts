@@ -2,20 +2,22 @@ import { apiFetch } from './api';
 
 export interface Rol {
   id_rol?: number;
-  rol_nombre: string;
+  nombre_rol: string;
 }
 
 export const rolService = {
   getAll: async () => {
     const response = await apiFetch('/roles');
     if (!response.ok) throw new Error('Error al obtener roles');
-    return await response.json();
+    const json = await response.json();
+    return json.data || json;
   },
 
   getById: async (id: number) => {
     const response = await apiFetch(`/roles/${id}`);
     if (!response.ok) throw new Error('Error al obtener el rol');
-    return await response.json();
+    const json = await response.json();
+    return json.data || json;
   },
 
   create: async (data: Partial<Rol>) => {
@@ -24,7 +26,8 @@ export const rolService = {
       body: JSON.stringify(data),
     });
     if (!response.ok) throw new Error('Error al crear rol');
-    return await response.json();
+    const json = await response.json();
+    return json.data || json;
   },
 
   update: async (id: number, data: Partial<Rol>) => {
@@ -33,7 +36,8 @@ export const rolService = {
       body: JSON.stringify(data),
     });
     if (!response.ok) throw new Error('Error al actualizar rol');
-    return await response.json();
+    const json = await response.json();
+    return json.data || json;
   },
 
   delete: async (id: number) => {
@@ -41,6 +45,7 @@ export const rolService = {
       method: 'DELETE',
     });
     if (!response.ok) throw new Error('Error al eliminar rol');
-    return await response.json();
+    const json = await response.json();
+    return json.data || json;
   },
 };
