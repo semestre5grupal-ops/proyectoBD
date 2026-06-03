@@ -8,12 +8,15 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Edit2, Trash2, Plus } from "lucide-react"
+import { Edit2, Trash2, Plus, Search } from "lucide-react"
 
 export default function RolesPage() {
   const [roles, setRoles] = useState<Rol[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Buscador
+  const [searchTerm, setSearchTerm] = useState("")
 
   // Estado del modal
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -35,6 +38,11 @@ export default function RolesPage() {
       setLoading(false)
     }
   }
+
+  // Filtrado por búsqueda
+  const filteredRoles = roles.filter(rol => 
+    rol.nombre_rol.toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
   const handleOpenModal = (rol?: Rol) => {
     if (rol) {
@@ -97,6 +105,16 @@ export default function RolesPage() {
           </Button>
         </div>
 
+        <div className="flex items-center bg-white p-1 rounded-lg shadow-sm border w-full max-w-md">
+          <Search className="text-muted-foreground ml-2 mr-2 w-5 h-5" />
+          <Input 
+            placeholder="Buscar por nombre de rol..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="border-0 shadow-none focus-visible:ring-0"
+          />
+        </div>
+
         {loading ? (
           <div className="flex justify-center p-8">Cargando roles...</div>
         ) : error ? (
@@ -111,14 +129,14 @@ export default function RolesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {roles.length === 0 ? (
+                {filteredRoles.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={3} className="text-center h-24 text-muted-foreground">
                       No hay roles registrados.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  roles.map((rol) => (
+                  filteredRoles.map((rol) => (
                     <TableRow key={rol.id_rol}>
                       <TableCell>{rol.nombre_rol}</TableCell>
                       <TableCell className="text-right">

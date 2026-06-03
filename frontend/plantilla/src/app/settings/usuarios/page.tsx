@@ -10,13 +10,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { Edit2, Trash2, Plus, Shield } from "lucide-react"
+import { Edit2, Trash2, Plus, Shield, Search } from "lucide-react"
 
 export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [roles, setRoles] = useState<Rol[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Buscador
+  const [searchTerm, setSearchTerm] = useState("")
 
   // Paginación
   const [currentPage, setCurrentPage] = useState(1)
@@ -129,9 +132,15 @@ export default function UsuariosPage() {
     return rol ? rol.nombre_rol : "Desconocido"
   }
 
+  // Filtrado por búsqueda
+  const filteredUsuarios = usuarios.filter(usuario => 
+    usuario.usu_nombre.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    getRoleName(usuario.id_rol).toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
   // Cálculos de paginación
-  const totalPages = Math.ceil(usuarios.length / ITEMS_PER_PAGE)
-  const currentUsers = usuarios.slice(
+  const totalPages = Math.ceil(filteredUsuarios.length / ITEMS_PER_PAGE)
+  const currentUsers = filteredUsuarios.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   )
@@ -159,6 +168,19 @@ export default function UsuariosPage() {
           <Button onClick={() => handleOpenModal()} className="gap-2">
             <Plus size={16} /> Nuevo Usuario
           </Button>
+        </div>
+
+        <div className="flex items-center bg-white p-1 rounded-lg shadow-sm border w-full max-w-md">
+          <Search className="text-muted-foreground ml-2 mr-2 w-5 h-5" />
+          <Input 
+            placeholder="Buscar por nombre o rol..." 
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value)
+              setCurrentPage(1)
+            }}
+            className="border-0 shadow-none focus-visible:ring-0"
+          />
         </div>
 
         {loading ? (
@@ -206,10 +228,10 @@ export default function UsuariosPage() {
             </Table>
             
             {/* Controles de Paginación */}
-            {usuarios.length > ITEMS_PER_PAGE && (
+            {filteredUsuarios.length > ITEMS_PER_PAGE && (
               <div className="flex items-center justify-between px-4 py-3 border-t">
                 <div className="text-sm text-muted-foreground">
-                  Mostrando del {(currentPage - 1) * ITEMS_PER_PAGE + 1} al {Math.min(currentPage * ITEMS_PER_PAGE, usuarios.length)} de {usuarios.length} usuarios
+                  Mostrando del {(currentPage - 1) * ITEMS_PER_PAGE + 1} al {Math.min(currentPage * ITEMS_PER_PAGE, filteredUsuarios.length)} de {filteredUsuarios.length} usuarios
                 </div>
                 <div className="flex gap-2">
                   <Button 
