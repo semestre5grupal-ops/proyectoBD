@@ -1,7 +1,7 @@
 "use client"
 
-import { Suspense } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Suspense, useEffect } from 'react'
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { routes, type RouteConfig } from '@/config/routes'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 
@@ -21,10 +21,31 @@ function renderRoutes(routeConfigs: RouteConfig[]) {
   ))
 }
 
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  useEffect(() => {
+    const token = localStorage.getItem('jwt_token')
+    const isPublicRoute = 
+      location.pathname.startsWith('/auth') || 
+      location.pathname === '/landing' || 
+      location.pathname === '/'
+
+    if (!token && !isPublicRoute) {
+      navigate('/auth/sign-in', { replace: true })
+    }
+  }, [navigate, location])
+
+  return <>{children}</>
+}
+
 export function AppRouter() {
   return (
-    <Routes>
-      {renderRoutes(routes)}
-    </Routes>
+    <AuthGuard>
+      <Routes>
+        {renderRoutes(routes)}
+      </Routes>
+    </AuthGuard>
   )
 }
