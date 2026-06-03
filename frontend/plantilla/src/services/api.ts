@@ -26,5 +26,15 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     window.location.href = '/auth/sign-in';
   }
 
+  // Wrapper to automatically extract 'data' from { success: true, data: ... }
+  const originalJson = response.json.bind(response);
+  response.json = async () => {
+    const jsonBody = await originalJson();
+    if (jsonBody && typeof jsonBody === 'object' && 'success' in jsonBody && 'data' in jsonBody) {
+      return jsonBody.data;
+    }
+    return jsonBody;
+  };
+
   return response;
 }
