@@ -1,26 +1,44 @@
 const NotificacionesModel = require('../models/notificacionesModel');
 
 /**
- * Mapa inverso id_rol → nombre de rol.
- * Sincronizado con authMiddleware.js y la tabla 'roles' de Supabase.
+ * Mapeo canónico id_rol (JWT de Alejandro) → string semántico almacenado en Supabase.
+ * Los registros de 'notificaciones_tareas' se guardaron con el string semántico,
+ * por lo tanto la búsqueda debe usar el mismo string.
+ *
+ * Sincronizado con authMiddleware.js:
+ *   id_rol 8  → JEFE_INVENTARIO
+ *   id_rol 9  → AUXILIAR_INVENTARIO
+ *   id_rol 10 → OPERATIVO_INVENTARIO
  */
-const MAPA_ROLES = {
+const MAPA_ID_ROL = {
     8:  'JEFE_INVENTARIO',
     9:  'AUXILIAR_INVENTARIO',
     10: 'OPERATIVO_INVENTARIO',
 };
 
 /**
- * Resuelve el nombre de rol string desde el payload del JWT.
- * Primero intenta leer rol_nombre (ya resuelto por authMiddleware),
- * luego hace fallback al id_rol numérico.
+ * Resuelve el nombre de rol semántico a partir del payload del JWT.
+ *
+ * Prioridad:
+ *   1. id_rol numérico  → mapeo canónico (fuente de verdad del JWT de Alejandro)
+ *   2. rol_nombre string → ya resuelto por authMiddleware (fallback)
+ *   3. Default          → 'OPERATIVO_INVENTARIO' (rol más restrictivo)
  *
  * @param {object} usuarioAutenticado - req.usuarioAutenticado
- * @returns {string} nombre del rol o 'OPERATIVO_INVENTARIO' por defecto
+ * @returns {string} nombre semántico del rol
  */
 function resolverRolNombre(usuarioAutenticado) {
+    // 1. Mapeo explícito por id_rol numérico (mayor prioridad)
+    const idRol = Number(usuarioAutenticado?.id_rol);
+    if (MAPA_ID_ROL[idRol]) return MAPA_ID_ROL[idRol];
+
+    // 2. Fallback: string ya resuelto por authMiddleware
     if (usuarioAutenticado?.rol_nombre) return usuarioAutenticado.rol_nombre;
-    return MAPA_ROLES[Number(usuarioAutenticado?.id_rol)] ?? 'OPERATIVO_INVENTARIO';
+    if (usuarioAutenticado?.rol)        return usuarioAutenticado.rol;
+
+    // 3. Default seguro
+    console.warn('[notificacionesController] id_rol no reconocido:', usuarioAutenticado?.id_rol, '— usando OPERATIVO_INVENTARIO');
+    return 'OPERATIVO_INVENTARIO';
 }
 
 /**
