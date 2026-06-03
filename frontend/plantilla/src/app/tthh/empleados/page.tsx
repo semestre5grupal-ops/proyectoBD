@@ -63,9 +63,9 @@ export default function EmpleadosPage() {
   const filteredEmpleados = empleados.filter(emp => {
     const term = searchTerm.toLowerCase()
     return (
-      emp.emp_nom1.toLowerCase().includes(term) ||
-      emp.emp_ap1.toLowerCase().includes(term) ||
-      emp.emp_cedula.includes(term)
+      (emp.emp_nom1 || "").toLowerCase().includes(term) ||
+      (emp.emp_ap1 || "").toLowerCase().includes(term) ||
+      (emp.emp_cedula || "").includes(term)
     )
   })
 
