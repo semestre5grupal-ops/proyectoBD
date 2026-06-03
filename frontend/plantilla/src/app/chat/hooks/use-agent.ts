@@ -89,6 +89,11 @@ export interface UseAgentActions {
    * Usado por la rutina de bienvenida asíncrona de page.tsx.
    */
   inyectarMensajeAgente: (texto: string) => void;
+  /**
+   * Inyecta una TaskCard en el chat, típicamente usada al cargar
+   * las notificaciones pendientes recuperadas del backend.
+   */
+  inyectarTaskCardAgente: (tareaBase: Omit<TareaInventario, 'id' | 'timestamp' | 'confirmacion_requerida'> & { id?: string }) => void;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -503,8 +508,8 @@ export function useAgent(): UseAgentState & UseAgentActions {
       // 5. Actualizar historial (para contexto en futuros mensajes)
       historialRef.current = [
         ...historialRef.current,
-        { role: 'user', content: texto },
-        { role: 'assistant', content: respuestaCompleta },
+        { role: 'user' as const, content: texto },
+        { role: 'assistant' as const, content: respuestaCompleta },
       ].slice(-20); // mantener máximo 20 mensajes de historial (10 turnos)
 
       // 6. Parsear la respuesta y crear TareaInventario
@@ -643,10 +648,8 @@ export function useAgent(): UseAgentState & UseAgentActions {
   const toggleVoz = useCallback((): void => {
     // Verificar soporte del navegador
     const SpeechRecognitionAPI =
-      (window as typeof window & { SpeechRecognition?: typeof SpeechRecognition; webkitSpeechRecognition?: typeof SpeechRecognition })
-        .SpeechRecognition ??
-      (window as typeof window & { webkitSpeechRecognition?: typeof SpeechRecognition })
-        .webkitSpeechRecognition;
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognitionAPI) {
       setAgentError('El reconocimiento de voz no está disponible. Usa Chrome o Edge.');
@@ -666,7 +669,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
 
     recognition.onstart = () => setEscuchando(true);
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
+    recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript.toLowerCase().trim();
 
       // ══ MODO CONFIRMACIÓN POR VOZ ═══════════════════════════════════
@@ -703,7 +706,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
       void sendMessage(event.results[0][0].transcript);
     };
 
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+    recognition.onerror = (event: any) => {
       console.error('[useAgent] Speech recognition error:', event.error);
       if (event.error !== 'aborted') {
         setAgentError(`Error de micrófono: ${event.error}`);
