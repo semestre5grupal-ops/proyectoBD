@@ -98,12 +98,16 @@ async function apiFetch<T extends ApiBaseResponse>(
     headers, // siempre sobreescribe el headers de options
   });
 
-  // 4. Sesión expirada o sin permisos — espeja el comportamiento de api.ts
+  // 4. Sesión expirada o sin permisos.
+  //    IMPORTANTE: NO redirigimos aquí con window.location.href porque esta
+  //    función es llamada desde use-agent.ts durante flujos del Agente IA.
+  //    Redirigir en caliente cortaría la sesión mientras el LLM procesa.
+  //    El hook captura "SESION_EXPIRADA" y lo muestra como agentError en el chat.
   if (response.status === 401 || response.status === 403) {
-    localStorage.removeItem("jwt_token");
-    window.location.href = "/auth/sign-in";
-    // Lanzar aquí corta el flujo antes de intentar parsear un body de error HTML
-    throw new Error("Sesión expirada. Redirigiendo al inicio de sesión...");
+    throw new Error(
+      "SESION_EXPIRADA: No tienes permisos para ejecutar esta operación. " +
+      "Tu sesión puede haber expirado o el rol no tiene acceso a este endpoint."
+    );
   }
 
   const data: T = await response.json();

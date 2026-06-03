@@ -83,6 +83,11 @@ export interface UseAgentActions {
   cancelarGeneracion: () => void;
   /** Limpia el error actual */
   limpiarError: () => void;
+  /**
+   * Inyecta un mensaje sintético del agente en el chat SIN invocar Ollama.
+   * Usado por la rutina de bienvenida asíncrona de page.tsx.
+   */
+  inyectarMensajeAgente: (texto: string) => void;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -215,6 +220,45 @@ function crearMensajeTarea(tarea: TareaInventario): MensajeERP {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// UTILIDAD DE VOZ NATIVA — SpeechSynthesis (HTML5)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Convierte texto a voz usando la API nativa window.speechSynthesis.
+ * Fuerza idioma español Ecuador (es-EC) con fallback a es-ES.
+ * Se cancela cualquier locución previa antes de iniciar la nueva.
+ *
+ * @param texto - Texto a leer en voz alta.
+ */
+export function emitirVoz(texto: string): void {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return;
+
+  // Cancelar locución previa para no acumular cola
+  window.speechSynthesis.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(texto);
+
+  // Intentar voz en español Ecuador; si el navegador no la soporta,
+  // speechSynthesis usará la voz disponible más cercana (es-ES u otra).
+  utterance.lang = 'es-EC';
+  utterance.rate = 1.0;   // velocidad normal
+  utterance.pitch = 1.0;  // tono normal
+  utterance.volume = 1.0; // volumen máximo
+
+  // Fallback: si el navegador reporta voces disponibles y ninguna es es-EC,
+  // buscar es-ES como segunda opción antes de dejar que el SO elija.
+  const voces = window.speechSynthesis.getVoices();
+  if (voces.length > 0) {
+    const vozEC  = voces.find(v => v.lang === 'es-EC');
+    const vozES  = voces.find(v => v.lang === 'es-ES');
+    const vozGen = voces.find(v => v.lang.startsWith('es'));
+    utterance.voice = vozEC ?? vozES ?? vozGen ?? null;
+  }
+
+  window.speechSynthesis.speak(utterance);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // HOOK PRINCIPAL
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -260,6 +304,19 @@ export function useAgent(): UseAgentState & UseAgentActions {
 
   const ejecutarTarea = useCallback(async (tarea: TareaInventario): Promise<void> => {
     const { accion, payload } = tarea;
+
+    // ── Pre-flight: verificar que haya token antes de llamar al backend ──────
+    // Evita que inventarioService lance SESION_EXPIRADA cuando nunca hubo token.
+    const tokenActual = localStorage.getItem('jwt_token');
+    if (!tokenActual) {
+      setAgentError('Sesión no encontrada. Por favor inicia sesión para ejecutar esta acción.');
+      setMensajes(prev =>
+        prev.map(m =>
+          m.tarea?.id === tarea.id ? { ...m, tarea: { ...m.tarea!, estado: 'error' } } : m
+        )
+      );
+      return;
+    }
 
     try {
       let resultado: Record<string, unknown>;
@@ -338,6 +395,15 @@ export function useAgent(): UseAgentState & UseAgentActions {
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error desconocido al ejecutar la tarea.';
+
+      // ── Sesión expirada: mostrar error amigable sin redirigir ni limpiar token ──
+      // El token puede ser válido para el login pero el rol no tiene acceso al
+      // endpoint específico del microservicio. No cerramos sesión automáticamente.
+      const esSesionExpirada = msg.startsWith('SESION_EXPIRADA');
+      const mensajeVisible = esSesionExpirada
+        ? '⚠️ Sin permisos para esta operación. Tu sesión puede haber expirado — recarga la página e inicia sesión nuevamente.'
+        : msg;
+
       setMensajes(prev =>
         prev.map(m =>
           m.tarea?.id === tarea.id
@@ -345,7 +411,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
             : m
         )
       );
-      setAgentError(msg);
+      setAgentError(mensajeVisible);
     }
   }, [nombreUsuario, agregarMensaje]);
 
@@ -427,6 +493,8 @@ export function useAgent(): UseAgentState & UseAgentActions {
       // 7a. Si es INFORMATIVO → la burbuja de texto ya tiene la respuesta, no añadir TaskCard
       if (tarea.accion === 'INFORMATIVO') {
         // La respuesta ya está visible en la burbuja de streaming
+        // 🔊 Leer el mensaje en voz alta automáticamente
+        emitirVoz(respuestaCompleta);
         setAgentThinking(false);
         return;
       }
@@ -438,6 +506,8 @@ export function useAgent(): UseAgentState & UseAgentActions {
             m.id === thinkingId ? crearMensajeTarea(tarea) : m
           )
         );
+        // 🔊 Leer el mensaje de la TaskCard en voz alta
+        emitirVoz(tarea.mensaje_usuario);
       } else {
         // 7c. Sin confirmación → ejecutar directamente y actualizar burbuja
         setMensajes(prev =>
@@ -445,6 +515,8 @@ export function useAgent(): UseAgentState & UseAgentActions {
             m.id === thinkingId ? crearMensajeTarea(tarea) : m
           )
         );
+        // 🔊 Leer el mensaje de la TaskCard en voz alta
+        emitirVoz(tarea.mensaje_usuario);
         await ejecutarTarea(tarea);
       }
     } catch (err) {
@@ -565,6 +637,23 @@ export function useAgent(): UseAgentState & UseAgentActions {
     setAgentError(null);
   }, []);
 
+  /**
+   * Inyecta un mensaje del agente directamente en la lista de mensajes,
+   * sin pasar por Ollama. Usado para la rutina de bienvenida asíncrona.
+   */
+  const inyectarMensajeAgente = useCallback((texto: string): void => {
+    agregarMensaje({
+      id: `msg-sistema-${Date.now()}`,
+      content: texto,
+      timestamp: new Date().toISOString(),
+      senderId: 'agent',
+      type: 'text',
+      isEdited: false,
+      reactions: [],
+      replyTo: null,
+    });
+  }, [agregarMensaje]);
+
   return {
     // State
     mensajes,
@@ -580,6 +669,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
     rechazarTarea,
     cancelarGeneracion,
     limpiarError,
+    inyectarMensajeAgente,
   };
 }
 

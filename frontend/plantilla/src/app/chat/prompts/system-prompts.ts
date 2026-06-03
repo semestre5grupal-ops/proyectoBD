@@ -167,15 +167,24 @@ export function mapearRolJWT(payload: {
   id_rol?: number;
   rol?: string;
 }): RolInventario {
-  // Prioridad 1: string directo del JWT (si el SSO de Alejandro lo incluye)
-  if (payload.rol === 'JEFE_INVENTARIO')     return 'JEFE_INVENTARIO';
-  if (payload.rol === 'AUXILIAR_INVENTARIO') return 'AUXILIAR_INVENTARIO';
-  if (payload.rol === 'OPERATIVO_INVENTARIO') return 'OPERATIVO_INVENTARIO';
+  // ── Prioridad 1: string directo en el token (modo dev / SSO futuro) ────────
+  if (payload.rol === 'JEFE_INVENTARIO')      return 'JEFE_INVENTARIO'
+  if (payload.rol === 'AUXILIAR_INVENTARIO')  return 'AUXILIAR_INVENTARIO'
+  if (payload.rol === 'OPERATIVO_INVENTARIO') return 'OPERATIVO_INVENTARIO'
 
-  // Prioridad 2: mapeo desde roles del sistema ERP existente
-  if (payload.rol === 'ADMIN' || payload.id_rol === 1) return 'JEFE_INVENTARIO';
-  if (payload.rol === 'EMPLEADO_BODEGA' || payload.id_rol === 2) return 'AUXILIAR_INVENTARIO';
+  // ── Prioridad 2: IDs reales del clúster de Talento Humano (Alejandro) ─────
+  //   id_rol === 8  → Jefe de Inventario
+  //   id_rol === 9  → Auxiliar de Inventario
+  //   id_rol === 10 → Operativo de Inventario
+  if (payload.id_rol === 8)  return 'JEFE_INVENTARIO'
+  if (payload.id_rol === 9)  return 'AUXILIAR_INVENTARIO'
+  if (payload.id_rol === 10) return 'OPERATIVO_INVENTARIO'
 
-  // Fallback: cualquier otro rol recibe permisos mínimos
-  return 'OPERATIVO_INVENTARIO';
+  // ── Fallback explícito: log de advertencia para detectar IDs desconocidos ──
+  console.warn(
+    '[mapearRolJWT] id_rol desconocido:',
+    payload.id_rol,
+    '— asignando OPERATIVO_INVENTARIO por defecto.'
+  )
+  return 'OPERATIVO_INVENTARIO'
 }

@@ -1,5 +1,6 @@
 const InventarioModel = require('../models/inventarioModel');
 const axios = require('axios'); // Asegurar la importación al inicio del archivo si no está
+const { guardarNotificacion } = require('./notificacionesController');
 
 // ENDPOINT: Descontar Stock (Gabriel - Ventas)
 exports.descontarStock = async (req, res) => {
@@ -70,6 +71,21 @@ exports.ingresarStock = async (req, res) => {
         );
 
         await InventarioModel.registrarRecepcion(idBodega, descripcion || "Ingreso por compras", cantidad, usuario);
+
+        // ── Persistir notificación en notificaciones_tareas (estado 'pendiente') ──────
+        // Se dispara cuando Ollama genera un JSON válido de INGRESAR_STOCK / CONFIRMAR_RECEPCION.
+        // El OPERATIVO_INVENTARIO la leerá al entrar al módulo de chat.
+        try {
+            await guardarNotificacion({
+                accion: 'CONFIRMAR_RECEPCION',
+                mensaje: `Recibirás un lote de ${cantidad} unidades (variante ${idVariante}) desde el módulo de compras. Confirma la recepción física.`,
+                rolOrigen: req.usuarioAutenticado?.rol_nombre ?? 'SISTEMA',
+                payload: { idVariante, cantidad, idBodega, descripcion, usuario },
+            });
+        } catch (notifErr) {
+            // No interrumpir la respuesta principal si la notificación falla
+            console.warn('[inventarioController] No se pudo guardar la notificación:', notifErr.message);
+        }
 
         return res.status(200).json({
             success: true,
