@@ -187,17 +187,22 @@ export default function ChatAgentePage() {
     }
   }, [agent.mensajes.length])
 
-  // ── Rutina de bienvenida asíncrona — JEFE_INVENTARIO y OPERATIVO_INVENTARIO ──
-  // Se ejecuta UNA sola vez al montar. Si el rol es JEFE u OPERATIVO,
-  // consulta las tareas pendientes y anuncia el resultado por voz.
+  // ── Rutina de bienvenida asíncrona — JEFE (8) y OPERATIVO (10) ────────────
+  // Se ejecuta UNA sola vez al montar.
+  // IMPORTANTE: la condición compara el id_rol NUMÉRICO puro del JWT,
+  // sin pasar por mapearRolJWT(), para evitar falsos negativos cuando
+  // el token de Alejandro no incluye el campo 'rol' como string semántico.
   const bienvenidaSentRef = useRef(false)
   useEffect(() => {
     if (bienvenidaSentRef.current) return
     bienvenidaSentRef.current = true
 
-    // 1. Leer JWT del localStorage
+    // 1. Leer y decodificar el JWT
     const token = localStorage.getItem("jwt_token")
-    if (!token) return
+    if (!token) {
+      console.log("[Bienvenida] No hay jwt_token en localStorage — saliendo.")
+      return
+    }
 
     let payload: { id_rol?: number; rol?: string; usu_nombre?: string }
     try {
@@ -205,41 +210,57 @@ export default function ChatAgentePage() {
       if (parts.length !== 3) return
       payload = JSON.parse(atob(parts[1])) as typeof payload
     } catch {
-      return // Token malformado — ignorar
+      console.warn("[Bienvenida] Token malformado — saliendo.")
+      return
     }
 
-    // 2. Verificar que el rol sea JEFE (8) u OPERATIVO (10)
-    const rol = mapearRolJWT(payload)
-    if (rol !== "JEFE_INVENTARIO" && rol !== "OPERATIVO_INVENTARIO") return
+    // 2. Comparación por ID NUMÉRICO PURO (8 = JEFE, 10 = OPERATIVO)
+    //    Hacemos Number() por si el JWT lo envía como string "8".
+    const idRol = Number(payload.id_rol)
+    console.log("[Bienvenida] id_rol detectado:", idRol, "| rol string:", payload.rol)
+
+    if (idRol !== 8 && idRol !== 10) {
+      console.log("[Bienvenida] Rol no requiere bienvenida (id_rol:", idRol, ") — saliendo.")
+      return
+    }
 
     const nombreUsuario = payload.usu_nombre ?? "equipo"
     const apiBase = (import.meta.env.VITE_API_INVENTARIO as string | undefined) ?? "http://localhost:4000"
 
-    // 3. Fetch al endpoint de tareas pendientes (filtrado por rol_destino en el backend)
+    console.log("[Bienvenida] Consultando pendientes para id_rol:", idRol, "→", apiBase)
+
+    // 3. Fetch al endpoint de tareas pendientes
     fetch(`${apiBase}/api/inventario/tareas/pendientes`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => {
+        console.log("[Bienvenida] Status HTTP:", res.status)
+        return res.ok ? res.json() : null
+      })
       .then((json: { success: boolean; total: number; data?: Array<{ mensaje_usuario?: string; accion?: string }> } | null) => {
-        if (!json?.success || json.total === 0) return
+        // ── LOG DE AUDITORÍA ─────────────────────────────────────────────────
+        console.log("TAREAS RECIBIDAS EN FRONT:", json)
+
+        if (!json?.success || json.total === 0) {
+          console.log("[Bienvenida] Sin tareas pendientes (total:", json?.total ?? 0, ")")
+          return
+        }
 
         const n = json.total
         const pendientes = json.data ?? []
 
-        // Extraer resúmenes de los primeros dos mensajes
+        // Resúmenes de los primeros dos mensajes
         const resumen1 = pendientes[0]?.mensaje_usuario ?? pendientes[0]?.accion ?? "una tarea pendiente"
         const resumen2 = pendientes[1]?.mensaje_usuario ?? pendientes[1]?.accion ?? "otra tarea pendiente"
 
         let mensajeBienvenida: string
 
         if (n === 1) {
-          // Un solo pendiente: leerlo y preguntar si desea confirmarlo
           mensajeBienvenida =
             `Buenos días ${nombreUsuario}. Tienes un mensaje pendiente en tu bandeja de inventario. ` +
             `${resumen1}. ` +
             `¿Deseas confirmarlo ahora por voz?`
         } else {
-          // Más de uno: resumen de los dos primeros y pregunta de inicio
           mensajeBienvenida =
             `Buenos días ${nombreUsuario}. Tienes ${n} mensajes pendientes en tu bandeja de inventario. ` +
             `El primero es: ${resumen1}. ` +
@@ -247,14 +268,16 @@ export default function ChatAgentePage() {
             `¿Con cuál de estas acciones te gustaría empezar a trabajar hoy?`
         }
 
-        // 4. Simular mensaje del agente en el chat (sin invocar Ollama)
+        console.log("[Bienvenida] Mensaje generado:", mensajeBienvenida)
+
+        // 4. Inyectar en el chat sin invocar Ollama
         agent.inyectarMensajeAgente(mensajeBienvenida)
 
-        // 5. Leer el mensaje en voz alta con pequeño delay para que el DOM renderice
+        // 5. Leer en voz alta con delay para que el DOM renderice
         setTimeout(() => emitirVoz(mensajeBienvenida), 400)
       })
       .catch((err) => {
-        console.warn("[ChatPage] No se pudo obtener tareas pendientes:", err)
+        console.warn("[Bienvenida] Error al obtener tareas pendientes:", err)
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Solo al montar — intencionalmente sin deps
