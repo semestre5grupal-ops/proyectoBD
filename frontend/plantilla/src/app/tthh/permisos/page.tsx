@@ -61,7 +61,7 @@ export default function PermisosPage() {
 
   const getEmpleadoName = (id: number) => {
     const emp = empleados.find(e => e.id_empleado === id)
-    return emp ? `${emp.emp_nombre} ${emp.emp_apellido}` : "Desconocido"
+    return emp ? `${emp.emp_nom1} ${emp.emp_ap1}` : "Desconocido"
   }
 
   const filteredPermisos = permisos.filter(per => {
@@ -272,7 +272,7 @@ export default function PermisosPage() {
                 <option value="">Seleccione un empleado...</option>
                 {empleados.map(emp => (
                   <option key={emp.id_empleado} value={emp.id_empleado}>
-                    {emp.emp_nombre} {emp.emp_apellido} - {emp.emp_cedula}
+                    {emp.emp_nom1} {emp.emp_ap1} - {emp.emp_cedula}
                   </option>
                 ))}
               </select>

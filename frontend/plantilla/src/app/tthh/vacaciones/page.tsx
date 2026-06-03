@@ -63,7 +63,7 @@ export default function VacacionesPage() {
     const con = contratos.find(c => c.id_contrato === id_contrato)
     if (!con) return "Contrato Desconocido"
     const emp = empleados.find(e => e.id_empleado === con.id_empleado)
-    return emp ? `${emp.emp_nombre} ${emp.emp_apellido}` : "Empleado Desconocido"
+    return emp ? `${emp.emp_nom1} ${emp.emp_ap1}` : "Empleado Desconocido"
   }
 
   const filteredVacaciones = vacaciones.filter(vac => {

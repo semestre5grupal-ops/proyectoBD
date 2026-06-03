@@ -44,9 +44,9 @@ export default function UsersPage() {
       // Map Empleado to User interface for the existing DataTable
       const mappedUsers: User[] = data.map((emp) => ({
         id: emp.id_empleado || 0,
-        name: `${emp.emp_nombre} ${emp.emp_apellido}`,
-        email: `${emp.emp_cedula}@empresa.com`,
-        avatar: generateAvatar(`${emp.emp_nombre} ${emp.emp_apellido}`),
+        name: `${emp.emp_nom1} ${emp.emp_ap1}`,
+        email: emp.emp_email || `usuario${emp.id_empleado}@empresa.com`,
+        avatar: generateAvatar(`${emp.emp_nom1} ${emp.emp_ap1}`),
         role: "Empleado",
         plan: "N/A",
         billing: emp.emp_telefono,
@@ -74,8 +74,8 @@ export default function UsersPage() {
     try {
       const names = userData.name.split(" ");
       const newEmp: Empleado = {
-        emp_nombre: names[0] || "Nombre",
-        emp_apellido: names.slice(1).join(" ") || "Apellido",
+        emp_nom1: names[0] || "Nombre",
+        emp_ap1: names.slice(1).join(" ") || "Apellido",
         emp_cedula: "9999999999", // placeholder
         emp_telefono: "0999999999", // placeholder
         emp_direccion: "Desconocida", // placeholder
