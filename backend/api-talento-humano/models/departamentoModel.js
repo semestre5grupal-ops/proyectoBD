@@ -29,7 +29,7 @@ const updateDepartamento = async (id, data) => {
 };
 
 const deleteDepartamento = async (id) => {
-  const result = await pool.query('DELETE FROM departamento WHERE id_departamento = $1 RETURNING *', [id]);
+  const result = await pool.query("UPDATE departamento SET dep_estado = 'INC' WHERE id_departamento = $1 RETURNING *", [id]);
   return result.rows[0];
 };
 

@@ -11,10 +11,10 @@ export interface Cargo {
 
 export const cargoService = {
   getAll: async () => {
+  getAll: async (): Promise<Cargo[]> => {
     const response = await apiFetch('/cargo');
     if (!response.ok) throw new Error('Error al obtener cargos');
-    const json = await response.json();
-    return Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+    return await response.json();
   },
 
   getById: async (id: number) => {
@@ -24,10 +24,10 @@ export const cargoService = {
     return json.data || json;
   },
 
-  create: async (data: Partial<Cargo>) => {
+  create: async (cargo: Cargo): Promise<Cargo> => {
     const response = await apiFetch('/cargo', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(cargo),
     });
     if (!response.ok) {
       const errJson = await response.json().catch(() => ({}));
@@ -37,10 +37,10 @@ export const cargoService = {
     return json.data || json;
   },
 
-  update: async (id: number, data: Partial<Cargo>) => {
+  update: async (id: number, cargo: Cargo): Promise<Cargo> => {
     const response = await apiFetch(`/cargo/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(data),
+      body: JSON.stringify(cargo),
     });
     if (!response.ok) {
       const errJson = await response.json().catch(() => ({}));
@@ -50,7 +50,7 @@ export const cargoService = {
     return json.data || json;
   },
 
-  delete: async (id: number) => {
+  delete: async (id: number): Promise<void> => {
     const response = await apiFetch(`/cargo/${id}`, {
       method: 'DELETE',
     });

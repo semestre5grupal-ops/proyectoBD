@@ -29,7 +29,7 @@ const updateCargo = async (id, data) => {
 };
 
 const deleteCargo = async (id) => {
-  const result = await pool.query('DELETE FROM cargo WHERE id_cargo = $1 RETURNING *', [id]);
+  const result = await pool.query("UPDATE cargo SET car_estado = 'INC' WHERE id_cargo = $1 RETURNING *", [id]);
   return result.rows[0];
 };
 

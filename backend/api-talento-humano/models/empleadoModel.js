@@ -33,7 +33,7 @@ const updateEmpleado = async (id, empleado) => {
 };
 
 const deleteEmpleado = async (id) => {
-  const result = await pool.query('DELETE FROM empleados WHERE id_empleado = $1 RETURNING *', [id]);
+  const result = await pool.query("UPDATE empleados SET emp_estado = 'INC' WHERE id_empleado = $1 RETURNING *", [id]);
   return result.rows[0];
 };
 

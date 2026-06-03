@@ -10,10 +10,10 @@ export interface Periodo {
 
 export const periodoService = {
   getAll: async () => {
+  getAll: async (): Promise<Periodo[]> => {
     const response = await apiFetch('/periodo');
     if (!response.ok) throw new Error('Error al obtener periodos');
-    const json = await response.json();
-    return Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+    return await response.json();
   },
 
   getById: async (id: number) => {
@@ -23,27 +23,27 @@ export const periodoService = {
     return json.data || json;
   },
 
-  create: async (data: Partial<Periodo>) => {
+  create: async (periodo: Omit<Periodo, 'id_periodo'>): Promise<Periodo> => {
     const response = await apiFetch('/periodo', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(periodo),
     });
     if (!response.ok) throw new Error('Error al crear periodo');
     const json = await response.json();
     return json.data || json;
   },
 
-  update: async (id: number, data: Partial<Periodo>) => {
+  update: async (id: number, periodo: Omit<Periodo, 'id_periodo'>): Promise<Periodo> => {
     const response = await apiFetch(`/periodo/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(data),
+      body: JSON.stringify(periodo),
     });
     if (!response.ok) throw new Error('Error al actualizar periodo');
     const json = await response.json();
     return json.data || json;
   },
 
-  delete: async (id: number) => {
+  delete: async (id: number): Promise<void> => {
     const response = await apiFetch(`/periodo/${id}`, {
       method: 'DELETE',
     });

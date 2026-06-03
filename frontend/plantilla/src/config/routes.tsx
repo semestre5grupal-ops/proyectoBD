@@ -46,6 +46,15 @@ const NotificationSettings = lazy(() => import('@/app/settings/notifications/pag
 const ConnectionSettings = lazy(() => import('@/app/settings/connections/page'))
 
 // TTHH Pages
+const Empleados = lazy(() => import('@/app/tthh/empleados/page'))
+const Contratos = lazy(() => import('@/app/tthh/contratos/page'))
+const Dependientes = lazy(() => import('@/app/tthh/dependientes/page'))
+const Horarios = lazy(() => import('@/app/tthh/horarios/page'))
+const Asistencias = lazy(() => import('@/app/tthh/asistencias/page'))
+const Permisos = lazy(() => import('@/app/tthh/permisos/page'))
+const Vacaciones = lazy(() => import('@/app/tthh/vacaciones/page'))
+const Rubros = lazy(() => import('@/app/tthh/rubros/page'))
+const RolesPago = lazy(() => import('@/app/tthh/roles-pago/page'))
 const Departamentos = lazy(() => import('@/app/tthh/departamentos/page'))
 const Cargos = lazy(() => import('@/app/tthh/cargos/page'))
 const Periodos = lazy(() => import('@/app/tthh/periodos/page'))
@@ -85,6 +94,42 @@ export const routes: RouteConfig[] = [
   {
     path: "/dashboard/inventario",
     element: <DashboardInventario />
+  },
+  {
+    path: "/tthh/empleados",
+    element: <Empleados />
+  },
+  {
+    path: "/tthh/contratos",
+    element: <Contratos />
+  },
+  {
+    path: "/tthh/dependientes",
+    element: <Dependientes />
+  },
+  {
+    path: "/tthh/horarios",
+    element: <Horarios />
+  },
+  {
+    path: "/tthh/asistencias",
+    element: <Asistencias />
+  },
+  {
+    path: "/tthh/permisos",
+    element: <Permisos />
+  },
+  {
+    path: "/tthh/vacaciones",
+    element: <Vacaciones />
+  },
+  {
+    path: "/tthh/rubros",
+    element: <Rubros />
+  },
+  {
+    path: "/tthh/roles-pago",
+    element: <RolesPago />
   },
   {
     path: "/tthh/departamentos",
