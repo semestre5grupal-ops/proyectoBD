@@ -100,6 +100,102 @@ exports.consultarStock = async (req, res) => {
     }
 };
 
+// ─── Endpoints saga de stock para api-ventas ─────────────────────────────────
+
+// GET /variantes/:id → {id_variante, nombre, valor_unitario, iva_incluido}
+exports.getVariante = async (req, res) => {
+    try {
+        const data = await InventarioModel.obtenerVariante(req.params.id);
+        return res.status(200).json({ success: true, data });
+    } catch (error) {
+        const status = error.message.includes('not found') || error.message.includes('no rows') ? 404 : 500;
+        return res.status(status).json({ success: false, error: error.message });
+    }
+};
+
+// POST /stock/verificar — lote sin modificar stock
+// Body: { items: [{id_variante, cantidad}] }
+exports.verificarStock = async (req, res) => {
+    try {
+        const { items } = req.body;
+        if (!Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ success: false, error: 'items requerido y no vacío.' });
+        }
+        const resultado = await InventarioModel.verificarStockLote(items);
+        return res.status(200).json(resultado);
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+// POST /stock/reservar — descuenta stock (implementación mínima).
+// TODO[OI-08]: saga completa requiere tabla de reservas.
+// Body: { documento_id, items: [{id_variante, cantidad}] }
+exports.reservarStock = async (req, res) => {
+    try {
+        const { documento_id, items } = req.body;
+        if (!documento_id || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ success: false, error: 'documento_id e items son requeridos.' });
+        }
+        const resultado = await InventarioModel.reservarStockLote(documento_id, items);
+        return res.status(200).json({ success: true, ...resultado });
+    } catch (error) {
+        const status = error.message.includes('insuficiente') ? 409 : 500;
+        return res.status(status).json({ success: false, error: error.message });
+    }
+};
+
+// POST /stock/confirmar — no-op en implementación mínima (stock ya descontado en reservar).
+// TODO[OI-08]: en saga completa, aquí se haría el commit final.
+// Body: { reserva_id, documento_id }
+exports.confirmarReserva = async (req, res) => {
+    try {
+        const { reserva_id, documento_id } = req.body;
+        if (!reserva_id || !documento_id) {
+            return res.status(400).json({ success: false, error: 'reserva_id y documento_id son requeridos.' });
+        }
+        // TODO[OI-08]: no-op. En saga completa: mover stock de "reservado" a "comprometido".
+        return res.status(200).json({ success: true, message: 'Reserva confirmada.' });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+// POST /stock/liberar — revierte el descuento de reservarStock (compensación).
+// Body: { reserva_id, documento_id }
+exports.liberarReserva = async (req, res) => {
+    try {
+        const { reserva_id, documento_id } = req.body;
+        if (!reserva_id || !documento_id) {
+            return res.status(400).json({ success: false, error: 'reserva_id y documento_id son requeridos.' });
+        }
+        // Para liberar necesitamos los items originales; el cliente debe enviarlos.
+        // TODO[OI-08]: en saga completa, recuperar items desde tabla de reservas.
+        const { items } = req.body;
+        if (Array.isArray(items) && items.length > 0) {
+            await InventarioModel.liberarStockLote(items);
+        }
+        return res.status(200).json({ success: true, message: 'Reserva liberada.' });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+// POST /stock/reponer — devuelve stock (para anulaciones FAC APR y NCR). TODO[OI-07]
+// Body: { documento_id, items: [{id_variante, cantidad}] }
+exports.reponerStock = async (req, res) => {
+    try {
+        const { documento_id, items } = req.body;
+        if (!documento_id || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ success: false, error: 'documento_id e items son requeridos.' });
+        }
+        await InventarioModel.reponerStockLote(items);
+        return res.status(200).json({ success: true, message: 'Stock repuesto correctamente.' });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
 // ENDPOINT: Sincronizar Catálogo hacia la Nube (Firebase NoSQL)
 exports.sincronizarCloud = async (req, res) => {
     try {
