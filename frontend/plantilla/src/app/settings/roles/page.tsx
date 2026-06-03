@@ -106,7 +106,6 @@ export default function RolesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[100px]">ID</TableHead>
                   <TableHead>Nombre del Rol</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
@@ -121,7 +120,6 @@ export default function RolesPage() {
                 ) : (
                   roles.map((rol) => (
                     <TableRow key={rol.id_rol}>
-                      <TableCell className="font-medium">{rol.id_rol}</TableCell>
                       <TableCell>{rol.nombre_rol}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => handleOpenModal(rol)}>
