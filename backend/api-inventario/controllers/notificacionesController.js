@@ -66,3 +66,46 @@ exports.guardarNotificacion = async ({ payload, accion, mensaje, rolOrigen, rolD
         rolDestino,
     });
 };
+
+/**
+ * POST /api/inventario/tareas
+ * Persiste una notificación de tarea generada por Ollama en el FRONTEND.
+ * El frontend la llama tan pronto como parsea el JSON de intención, ANTES de
+ * que el usuario confirme. Solo se guarda si rol_destino !== rol_origen.
+ *
+ * Body esperado:
+ *   { accion, mensaje_usuario, rol_origen, rol_destino, payload_json }
+ *
+ * Protegido con verificarToken (definido en la ruta).
+ */
+exports.crearTarea = async (req, res) => {
+    try {
+        const { accion, mensaje_usuario, rol_origen, rol_destino, payload_json } = req.body;
+
+        if (!accion || !mensaje_usuario || !rol_destino) {
+            return res.status(400).json({
+                success: false,
+                error: 'Campos requeridos: accion, mensaje_usuario, rol_destino.'
+            });
+        }
+
+        const rolOrigen = rol_origen ?? resolverRolNombre(req.usuarioAutenticado);
+
+        const notificacion = await NotificacionesModel.crearNotificacion({
+            accion,
+            mensaje: mensaje_usuario,
+            rolOrigen,
+            rolDestino: rol_destino,
+            payload: payload_json ?? {},
+        });
+
+        return res.status(201).json({
+            success: true,
+            message: 'Notificación de tarea registrada correctamente.',
+            data: notificacion,
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+

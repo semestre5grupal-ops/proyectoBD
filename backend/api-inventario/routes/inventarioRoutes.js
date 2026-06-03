@@ -7,8 +7,12 @@ const notificacionesController = require('../controllers/notificacionesControlle
 const { verificarToken, restringirA } = require('../middlewares/authMiddleware');
 
 // ─── NOTIFICACIONES DE TAREAS ─────────────────────────────────────────────────
-// Cualquier usuario autenticado puede leer sus tareas pendientes (OPERATIVO lo necesita).
+// GET: Cualquier usuario autenticado puede leer sus tareas pendientes.
 router.get('/tareas/pendientes', verificarToken, notificacionesController.obtenerTareasPendientes);
+
+// POST: El frontend persiste la intención de la IA tan pronto como Ollama genera el JSON.
+//       Solo se llama cuando rol_destino !== rol del usuario actual.
+router.post('/tareas', verificarToken, notificacionesController.crearTarea);
 
 // ─── CONSULTA DE STOCK ────────────────────────────────────────────────────────
 // Cualquier usuario autenticado puede revisar existencias (sin restricción de rol).

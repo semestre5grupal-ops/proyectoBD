@@ -189,6 +189,7 @@ export const PERMISOS_POR_ROL: Record<RolInventario, AccionInventario[]> = {
   ],
   AUXILIAR_INVENTARIO: [
     'INGRESAR_STOCK',
+    'AUTORIZAR_AJUSTE',
     'CONSULTAR',
     'INFORMATIVO',
   ],
