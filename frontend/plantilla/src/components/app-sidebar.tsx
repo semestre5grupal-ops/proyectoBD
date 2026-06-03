@@ -20,7 +20,6 @@ import {
 } from "lucide-react"
 import { Link } from "react-router-dom"
 import { Logo } from "@/components/logo"
-import { SidebarNotification } from "@/components/sidebar-notification"
 
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
@@ -66,7 +65,11 @@ const data = {
           icon: Package,
         },
         // Gabriel — Ventas: agregar aquí cuando esté listo
-        // Liz — Compras: agregar aquí cuando esté listo
+        {
+          title: "Compras (Liz)",
+          url: "/dashboard/compras",
+          icon: ShoppingCart,
+        },
         // Alejandro — Talento Humano: agregar aquí cuando esté listo
         {
           title: "Ajustes (Alejandro)",
@@ -112,11 +115,6 @@ const data = {
           title: "Users",
           url: "/users",
           icon: Users,
-        },
-        {
-          title: "Compras",
-          url: "/compras",
-          icon: ShoppingCart,
         },
       ],
     },
@@ -271,7 +269,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         ))}
       </SidebarContent>
       <SidebarFooter>
-        <SidebarNotification />
         <NavUser user={data.user} />
       </SidebarFooter>
     </Sidebar>

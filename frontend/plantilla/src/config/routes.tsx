@@ -103,7 +103,7 @@ export const routes: RouteConfig[] = [
     element: <Users />
   },
   {
-    path: "/compras",
+    path: "/dashboard/compras",
     element: <Compras />
   },
   {
