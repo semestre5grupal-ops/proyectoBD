@@ -36,13 +36,15 @@ export type RolInventario =
  * Mapeadas directamente a los endpoints de inventarioService.ts.
  */
 export type AccionInventario =
-  | 'INGRESAR_STOCK'      // → inventarioService.ingresarStock()
+  | 'INGRESAR_STOCK'      // Ejecuta el ingreso real al stock — solo OPERATIVO al confirmar
   | 'DESCONTAR_STOCK'     // → inventarioService.descontarStock()
   | 'DAR_DE_BAJA'         // Baja lógica de variante (solo JEFE)
   | 'CONSULTAR'           // → inventarioService.consultarStock()
   | 'SINCRONIZAR'         // → inventarioService.sincronizarCloud() (solo JEFE)
   | 'INFORMATIVO'         // La IA pide más datos o responde sin ejecutar
-  | 'CONFIRMAR_RECEPCION';// Solo para OPERATIVO: confirma haber recibido una tarea
+  | 'CONFIRMAR_RECEPCION' // OPERATIVO: confirma haber recibido una tarea del Jefe
+  | 'CREAR_PRODUCTO'      // JEFE: delega ingreso de mercancía al OPERATIVO
+  | 'AUTORIZAR_AJUSTE';   // JEFE: autoriza un ajuste de stock manual
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PAYLOAD — Datos de ejecución para inventarioService
@@ -102,6 +104,12 @@ export interface TareaInventario {
   /** Rol del usuario que originó la instrucción */
   rol_origen: RolInventario;
 
+  /**
+   * Rol al que va dirigida la tarea (presente solo cuando el Jefe delega al Operativo).
+   * undefined = la tarea se ejecuta en el mismo rol que la originó.
+   */
+  rol_destino?: RolInventario;
+
   /** Instrucción original del usuario (texto o transcripción de voz) */
   instruccion_original: string;
 
@@ -149,6 +157,11 @@ export interface RespuestaAgente {
   payload: PayloadInventario;
   confirmacion_requerida: boolean;
   mensaje_usuario: string;
+  /**
+   * Rol destino opcional: el Jefe lo emite cuando delega al Operativo.
+   * Ejemplo: JEFE dicta un ingreso → el LLM devuelve rol_destino: "OPERATIVO_INVENTARIO".
+   */
+  rol_destino?: RolInventario;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -160,8 +173,14 @@ export interface RespuestaAgente {
  * Usada en use-agent.ts para validar que la IA no exceda los permisos del rol.
  */
 export const PERMISOS_POR_ROL: Record<RolInventario, AccionInventario[]> = {
+  /**
+   * JEFE_INVENTARIO: Puede autorizar y delegar. NO ejecuta ingresos directamente;
+   * los estructura como CREAR_PRODUCTO / AUTORIZAR_AJUSTE con rol_destino OPERATIVO.
+   */
   JEFE_INVENTARIO: [
-    'INGRESAR_STOCK',
+    'CREAR_PRODUCTO',
+    'AUTORIZAR_AJUSTE',
+    'CONFIRMAR_RECEPCION',
     'DESCONTAR_STOCK',
     'DAR_DE_BAJA',
     'CONSULTAR',
@@ -170,11 +189,18 @@ export const PERMISOS_POR_ROL: Record<RolInventario, AccionInventario[]> = {
   ],
   AUXILIAR_INVENTARIO: [
     'INGRESAR_STOCK',
+    'AUTORIZAR_AJUSTE',
     'CONSULTAR',
     'INFORMATIVO',
   ],
+  /**
+   * OPERATIVO_INVENTARIO: Recibe tareas del Jefe y ejecuta el stock real al confirmar.
+   * INGRESAR_STOCK se permite aqui para que ejecutarTarea() pueda llamar a ingresarStock()
+   * cuando el operativo confirma la recepcion fisica.
+   */
   OPERATIVO_INVENTARIO: [
     'CONFIRMAR_RECEPCION',
+    'INGRESAR_STOCK',
     'INFORMATIVO',
   ],
 };

@@ -48,6 +48,8 @@ const ConnectionSettings = lazy(() => import('@/app/settings/connections/page'))
 const Departamentos = lazy(() => import('@/app/tthh/departamentos/page'))
 const Cargos = lazy(() => import('@/app/tthh/cargos/page'))
 const Periodos = lazy(() => import('@/app/tthh/periodos/page'))
+const DashboardTTHH = lazy(() => import('@/app/dashboard-tthh/page'))
+const ChatTTHH = lazy(() => import('@/app/chat-tthh/page'))
 
 export interface RouteConfig {
   path: string
@@ -95,6 +97,14 @@ export const routes: RouteConfig[] = [
     path: "/tthh/periodos",
     element: <Periodos />
   },
+  {
+    path: "/dashboard-tthh",
+    element: <DashboardTTHH />
+  },
+  {
+    path: "/chat-tthh",
+    element: <ChatTTHH />
+  },
 
   // Application Routes
   {
@@ -120,7 +130,7 @@ export const routes: RouteConfig[] = [
     element: <Users />
   },
   {
-    path: "/compras",
+    path: "/dashboard/compras",
     element: <Compras />
   },
   {

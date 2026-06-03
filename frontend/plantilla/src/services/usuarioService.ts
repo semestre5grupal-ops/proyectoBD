@@ -5,6 +5,8 @@ export interface Usuario {
   usu_nombre: string;
   usu_contra?: string;
   id_rol: number;
+  usu_estado?: string;
+  id_empleado?: number | null;
 }
 
 export const usuarioService = {

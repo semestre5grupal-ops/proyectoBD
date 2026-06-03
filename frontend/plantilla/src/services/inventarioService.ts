@@ -98,12 +98,16 @@ async function apiFetch<T extends ApiBaseResponse>(
     headers, // siempre sobreescribe el headers de options
   });
 
-  // 4. Sesión expirada o sin permisos — espeja el comportamiento de api.ts
+  // 4. Sesión expirada o sin permisos.
+  //    IMPORTANTE: NO redirigimos aquí con window.location.href porque esta
+  //    función es llamada desde use-agent.ts durante flujos del Agente IA.
+  //    Redirigir en caliente cortaría la sesión mientras el LLM procesa.
+  //    El hook captura "SESION_EXPIRADA" y lo muestra como agentError en el chat.
   if (response.status === 401 || response.status === 403) {
-    localStorage.removeItem("jwt_token");
-    window.location.href = "/auth/sign-in";
-    // Lanzar aquí corta el flujo antes de intentar parsear un body de error HTML
-    throw new Error("Sesión expirada. Redirigiendo al inicio de sesión...");
+    throw new Error(
+      "SESION_EXPIRADA: No tienes permisos para ejecutar esta operación. " +
+      "Tu sesión puede haber expirado o el rol no tiene acceso a este endpoint."
+    );
   }
 
   const data: T = await response.json();
@@ -192,3 +196,39 @@ export async function ingresarStock(
 export async function sincronizarCloud(): Promise<SincronizarCloudResponse> {
   return apiFetch<SincronizarCloudResponse>("/api/inventario/sincronizar-cloud");
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// NOTIFICACIONES DE TAREAS — Persistencia desde el frontend
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Payload para POST /api/inventario/tareas */
+export interface NotificacionTareaPayload {
+  accion: string;
+  mensaje_usuario: string;
+  rol_origen: string;
+  rol_destino: string;
+  payload_json?: Record<string, unknown>;
+}
+
+/** Response de POST /api/inventario/tareas */
+export interface CrearTareaResponse extends ApiBaseResponse {
+  message?: string;
+  data?: Record<string, unknown>;
+}
+
+/**
+ * Persiste una notificación de tarea en Supabase a través del backend.
+ * El frontend la llama en use-agent.ts tan pronto como Ollama genera el JSON
+ * de intención y se detecta que rol_destino !== rol del usuario actual.
+ *
+ * Endpoint: POST /api/inventario/tareas
+ */
+export async function crearNotificacionTarea(
+  payload: NotificacionTareaPayload
+): Promise<CrearTareaResponse> {
+  return apiFetch<CrearTareaResponse>("/api/inventario/tareas", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+

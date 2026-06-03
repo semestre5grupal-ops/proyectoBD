@@ -1,5 +1,5 @@
 const InventarioModel = require('../models/inventarioModel');
-const axios = require('axios'); // Asegurar la importación al inicio del archivo si no está
+const axios = require('axios');
 
 // ENDPOINT: Descontar Stock (Gabriel - Ventas)
 exports.descontarStock = async (req, res) => {

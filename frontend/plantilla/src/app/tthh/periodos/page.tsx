@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { CalendarDays, ChevronDown, ChevronRight, Edit2 } from "lucide-react"
+import { CalendarDays, ChevronDown, ChevronRight } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 

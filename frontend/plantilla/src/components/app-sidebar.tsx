@@ -20,7 +20,6 @@ import {
 } from "lucide-react"
 import { Link } from "react-router-dom"
 import { Logo } from "@/components/logo"
-import { SidebarNotification } from "@/components/sidebar-notification"
 
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
@@ -36,7 +35,7 @@ import {
 
 const data = {
   user: {
-    name: "ShadcnStore",
+    name: "ERP Comercial",
     email: "store@example.com",
     avatar: "",
   },
@@ -67,11 +66,19 @@ const data = {
         },
         // Gabriel — Ventas: agregar aquí cuando esté listo
         // Liz — Compras: agregar aquí cuando esté listo
+        // Alejandro — Talento Humano: agregar aquí cuando esté listo
+        {
+          title: "Compras (Liz)",
+          url: "/dashboard/compras",
+          icon: ShoppingCart,
+        },
         {
           title: "Talento Humano (Alejandro)",
-          url: "#",
+          url: "/dashboard-tthh",
           icon: Users,
           items: [
+            { title: "Dashboard TTHH", url: "/dashboard-tthh" },
+            { title: "Agente IA", url: "/chat-tthh" },
             { title: "Departamentos", url: "/tthh/departamentos" },
             { title: "Cargos", url: "/tthh/cargos" },
             { title: "Períodos", url: "/tthh/periodos" },
@@ -130,11 +137,6 @@ const data = {
           title: "Users",
           url: "/users",
           icon: Users,
-        },
-        {
-          title: "Compras",
-          url: "/compras",
-          icon: ShoppingCart,
         },
       ],
     },
@@ -275,7 +277,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <Logo size={24} className="text-current" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">ShadcnStore</span>
+                  <span className="truncate font-medium">ERP Comercial</span>
                   <span className="truncate text-xs">Admin Dashboard</span>
                 </div>
               </Link>
@@ -289,7 +291,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         ))}
       </SidebarContent>
       <SidebarFooter>
-        <SidebarNotification />
         <NavUser user={data.user} />
       </SidebarFooter>
     </Sidebar>

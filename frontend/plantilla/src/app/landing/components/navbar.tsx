@@ -81,10 +81,10 @@ export function LandingNavbar() {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex h-16 items-center justify-between">
         {/* Logo */}
         <div className="flex items-center space-x-2">
-          <a href="https://shadcnstore.com" className="flex items-center space-x-2 cursor-pointer" target='_blank' rel="noopener noreferrer">
+          <a href="https://ERP Comercial.com" className="flex items-center space-x-2 cursor-pointer" target='_blank' rel="noopener noreferrer">
             <Logo size={32} />
             <span className="font-bold">
-              ShadcnStore
+              ERP Comercial
             </span>
           </a>
         </div>
@@ -161,7 +161,7 @@ export function LandingNavbar() {
                   <div className="p-2 bg-primary/10 rounded-lg">
                     <Logo size={16} />
                   </div>
-                  <SheetTitle className="text-lg font-semibold">ShadcnStore</SheetTitle>
+                  <SheetTitle className="text-lg font-semibold">ERP Comercial</SheetTitle>
                   <div className="ml-auto flex items-center gap-2">
                     <Button
                       variant="ghost"

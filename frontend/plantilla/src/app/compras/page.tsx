@@ -43,10 +43,10 @@ export default function ComprasPage() {
         const parts = token.split('.');
         if (parts.length === 3) {
           const payload = JSON.parse(atob(parts[1]));
-          // Assume role ID 1 is Administrator in the system, or the user is specifically 'admin'
-          // If a token is present, we enforce role === 1 or username === 'admin' check
           const userRole = Number(payload.id_rol);
-          setIsAdmin(userRole === 1 || payload.usu_nombre === 'admin');
+          const authorizedRoles = [1, 11, 12, 13];
+
+          setIsAdmin(authorizedRoles.includes(userRole) || payload.usu_nombre === 'admin');
           setUserName(payload.usu_nombre || "Usuario");
         }
       } catch (e) {
@@ -71,7 +71,7 @@ export default function ComprasPage() {
           <AlertCircle className="h-12 w-12 text-destructive" />
           <h2 className="text-xl font-bold">Acceso Restringido</h2>
           <p className="text-sm text-muted-foreground">
-            Lo sentimos, {userName}. Su cuenta no tiene privilegios de **Administrador**. Por favor, inicie sesión con una cuenta autorizada para acceder a la gestión de compras.
+            Lo sentimos, {userName}. Su cuenta no tiene los privilegios necesarios (Jefe, Auxiliar u Operativo de Compras). Por favor, inicie sesión con una cuenta autorizada para acceder a la gestión de compras.
           </p>
         </div>
       </BaseLayout>
@@ -79,12 +79,12 @@ export default function ComprasPage() {
   }
 
   return (
-    <BaseLayout 
-      title="Gestión de Compras" 
+    <BaseLayout
+      title="Gestión de Compras"
       description="Supervisión de proveedores, órdenes de compra, recepciones en bodega y devoluciones."
     >
       <div className="flex flex-col gap-6 px-4 lg:px-6">
-        
+
         {/* Admin context bar */}
         <div className="flex items-center justify-between border rounded-lg p-3 bg-primary/5 text-sm">
           <div className="flex items-center gap-2">
@@ -92,7 +92,7 @@ export default function ComprasPage() {
             <span>Sesión autorizada para: <strong>{userName}</strong></span>
           </div>
           <Badge variant="outline" className="bg-primary/10 border-primary/20 text-primary">
-            Rol: Administrador
+            Rol: Autorizado (Compras / Admin)
           </Badge>
         </div>
 
@@ -158,7 +158,7 @@ export default function ComprasPage() {
               <TabsTrigger value="devoluciones">Devoluciones</TabsTrigger>
               <TabsTrigger value="proveedores">Proveedores</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="ordenes" className="focus-visible:outline-none">
               <OrdenesTab
                 orders={orders}

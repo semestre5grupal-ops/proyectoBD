@@ -37,6 +37,7 @@ import {
   descontarStock,
   consultarStock,
   sincronizarCloud,
+  crearNotificacionTarea,
 } from '@/services/inventarioService';
 import {
   SYSTEM_PROMPTS,
@@ -83,6 +84,11 @@ export interface UseAgentActions {
   cancelarGeneracion: () => void;
   /** Limpia el error actual */
   limpiarError: () => void;
+  /**
+   * Inyecta un mensaje sintético del agente en el chat SIN invocar Ollama.
+   * Usado por la rutina de bienvenida asíncrona de page.tsx.
+   */
+  inyectarMensajeAgente: (texto: string) => void;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -193,6 +199,8 @@ function parseAgentResponse(
     estado: 'pendiente',
     timestamp,
     rol_origen: rolActivo,
+    // Propagar rol_destino del JSON de Ollama si existe
+    rol_destino: (parsed.rol_destino as RolInventario | undefined) ?? undefined,
     instruccion_original,
   };
 }
@@ -215,6 +223,45 @@ function crearMensajeTarea(tarea: TareaInventario): MensajeERP {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// UTILIDAD DE VOZ NATIVA — SpeechSynthesis (HTML5)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Convierte texto a voz usando la API nativa window.speechSynthesis.
+ * Fuerza idioma español Ecuador (es-EC) con fallback a es-ES.
+ * Se cancela cualquier locución previa antes de iniciar la nueva.
+ *
+ * @param texto - Texto a leer en voz alta.
+ */
+export function emitirVoz(texto: string): void {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return;
+
+  // Cancelar locución previa para no acumular cola
+  window.speechSynthesis.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(texto);
+
+  // Intentar voz en español Ecuador; si el navegador no la soporta,
+  // speechSynthesis usará la voz disponible más cercana (es-ES u otra).
+  utterance.lang = 'es-EC';
+  utterance.rate = 1.0;   // velocidad normal
+  utterance.pitch = 1.0;  // tono normal
+  utterance.volume = 1.0; // volumen máximo
+
+  // Fallback: si el navegador reporta voces disponibles y ninguna es es-EC,
+  // buscar es-ES como segunda opción antes de dejar que el SO elija.
+  const voces = window.speechSynthesis.getVoices();
+  if (voces.length > 0) {
+    const vozEC  = voces.find(v => v.lang === 'es-EC');
+    const vozES  = voces.find(v => v.lang === 'es-ES');
+    const vozGen = voces.find(v => v.lang.startsWith('es'));
+    utterance.voice = vozEC ?? vozES ?? vozGen ?? null;
+  }
+
+  window.speechSynthesis.speak(utterance);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // HOOK PRINCIPAL
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -230,10 +277,16 @@ export function useAgent(): UseAgentState & UseAgentActions {
   const [nombreUsuario] = useState<string>(sesion.nombre);
   const [escuchando, setEscuchando] = useState(false);
 
-  // ── Refs para control de streaming y reconocimiento de voz ─────────────────
+  // ── Refs para control de streaming, tarea pendiente y reconocimiento de voz ─────
   const abortControllerRef = useRef<AbortController | null>(null);
   const recognitionRef     = useRef<SpeechRecognition | null>(null);
   const historialRef       = useRef<OllamaMessage[]>([]); // historial de conversación
+  /**
+   * pendingTaskRef: referencia a la TareaInventario cuya TaskCard está visible
+   * y esperando acción humana. Se usa para el control de confirmación por voz.
+   * null = no hay tarea activa esperando confirmación.
+   */
+  const pendingTaskRef = useRef<TareaInventario | null>(null);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ACCIÓN: Añadir mensaje a la lista
@@ -261,6 +314,19 @@ export function useAgent(): UseAgentState & UseAgentActions {
   const ejecutarTarea = useCallback(async (tarea: TareaInventario): Promise<void> => {
     const { accion, payload } = tarea;
 
+    // ── Pre-flight: verificar que haya token antes de llamar al backend ──────
+    // Evita que inventarioService lance SESION_EXPIRADA cuando nunca hubo token.
+    const tokenActual = localStorage.getItem('jwt_token');
+    if (!tokenActual) {
+      setAgentError('Sesión no encontrada. Por favor inicia sesión para ejecutar esta acción.');
+      setMensajes(prev =>
+        prev.map(m =>
+          m.tarea?.id === tarea.id ? { ...m, tarea: { ...m.tarea!, estado: 'error' } } : m
+        )
+      );
+      return;
+    }
+
     try {
       let resultado: Record<string, unknown>;
 
@@ -280,6 +346,16 @@ export function useAgent(): UseAgentState & UseAgentActions {
             descripcion: payload.descripcion ?? 'Ingreso vía Agente IA',
             usuario: payload.usuario ?? nombreUsuario,
           });
+          break;
+        }
+
+        case 'CREAR_PRODUCTO':
+        case 'AUTORIZAR_AJUSTE': {
+          // El Jefe delega — estas acciones NO ejecutan stock directamente.
+          // Solo persisten la notificación en el backend (ya ocurrió al llamar
+          // ingresarStock del Jefe, o se deja pendiente para el Operativo).
+          // Resultado exitoso sin impacto inmediato en stock.
+          resultado = { success: true, message: 'Tarea delegada al Operativo de Inventario.' };
           break;
         }
 
@@ -312,6 +388,11 @@ export function useAgent(): UseAgentState & UseAgentActions {
           break;
       }
 
+      // Liberar la tarea pendiente del ref al ejecutar
+      if (pendingTaskRef.current?.id === tarea.id) {
+        pendingTaskRef.current = null;
+      }
+
       // ── Actualizar estado de la tarea a 'ejecutada' ──────────────────────
       setMensajes(prev =>
         prev.map(m =>
@@ -338,6 +419,15 @@ export function useAgent(): UseAgentState & UseAgentActions {
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error desconocido al ejecutar la tarea.';
+
+      // ── Sesión expirada: mostrar error amigable sin redirigir ni limpiar token ──
+      // El token puede ser válido para el login pero el rol no tiene acceso al
+      // endpoint específico del microservicio. No cerramos sesión automáticamente.
+      const esSesionExpirada = msg.startsWith('SESION_EXPIRADA');
+      const mensajeVisible = esSesionExpirada
+        ? '⚠️ Sin permisos para esta operación. Tu sesión puede haber expirado — recarga la página e inicia sesión nuevamente.'
+        : msg;
+
       setMensajes(prev =>
         prev.map(m =>
           m.tarea?.id === tarea.id
@@ -345,7 +435,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
             : m
         )
       );
-      setAgentError(msg);
+      setAgentError(mensajeVisible);
     }
   }, [nombreUsuario, agregarMensaje]);
 
@@ -427,24 +517,66 @@ export function useAgent(): UseAgentState & UseAgentActions {
       // 7a. Si es INFORMATIVO → la burbuja de texto ya tiene la respuesta, no añadir TaskCard
       if (tarea.accion === 'INFORMATIVO') {
         // La respuesta ya está visible en la burbuja de streaming
+        // 🔊 Leer el mensaje en voz alta automáticamente
+        emitirVoz(respuestaCompleta);
         setAgentThinking(false);
         return;
       }
 
-      // 7b. Si confirmacion_requerida → reemplazar la burbuja de texto por un TaskCard
-      if (tarea.confirmacion_requerida) {
+      // ══ Regla de oro: CREAR_PRODUCTO y AUTORIZAR_AJUSTE son SIEMPRE confirmación requerida ══
+      const accionesQueRequierenConfirmacion: AccionInventario[] = [
+        'CREAR_PRODUCTO', 'AUTORIZAR_AJUSTE', 'DAR_DE_BAJA', 'SINCRONIZAR',
+      ];
+      const confirmacionForzada =
+        tarea.confirmacion_requerida ||
+        accionesQueRequierenConfirmacion.includes(tarea.accion);
+
+      // ══ FLUJO DE DELEGACIÓN: rol_destino !== rolActivo ══════════════════════════════
+      // Si la tarea va dirigida a otro rol, persistir en Supabase vía POST /tareas
+      // y mostrar solo un mensaje informativo (sin botones de Confirmar).
+      if (tarea.rol_destino && tarea.rol_destino !== rolActivo) {
+        // a) Persistir la notificación en el backend (fire-and-forget amigable)
+        crearNotificacionTarea({
+          accion: tarea.accion,
+          mensaje_usuario: tarea.mensaje_usuario,
+          rol_origen: rolActivo,
+          rol_destino: tarea.rol_destino,
+          payload_json: tarea.payload as Record<string, unknown>,
+        }).catch((err: unknown) => {
+          console.warn('[useAgent] No se pudo persistir la tarea delegada:', err);
+        });
+
+        // b) Reemplazar la burbuja de streaming con mensaje informativo (sin TaskCard)
+        const mensajeDelegacion = 'Entendido, he registrado la tarea pendiente para el equipo correspondiente.';
         setMensajes(prev =>
           prev.map(m =>
-            m.id === thinkingId ? crearMensajeTarea(tarea) : m
+            m.id === thinkingId
+              ? { ...m, content: `📤 ${tarea.mensaje_usuario}\n\nℹ️ ${mensajeDelegacion}` }
+              : m
           )
         );
+
+        // c) Leer en voz alta la confirmación de delegación
+        emitirVoz(mensajeDelegacion);
+
+      } else if (confirmacionForzada) {
+        // 7b. Requiere confirmación del usuario actual → TaskCard
+        const tareaConFlag: TareaInventario = { ...tarea, confirmacion_requerida: true };
+        setMensajes(prev =>
+          prev.map(m =>
+            m.id === thinkingId ? crearMensajeTarea(tareaConFlag) : m
+          )
+        );
+        pendingTaskRef.current = tareaConFlag;
+        emitirVoz(tarea.mensaje_usuario);
       } else {
-        // 7c. Sin confirmación → ejecutar directamente y actualizar burbuja
+        // 7c. Sin confirmación (ej. CONSULTAR) → ejecutar directamente
         setMensajes(prev =>
           prev.map(m =>
             m.id === thinkingId ? crearMensajeTarea(tarea) : m
           )
         );
+        emitirVoz(tarea.mensaje_usuario);
         await ejecutarTarea(tarea);
       }
     } catch (err) {
@@ -534,9 +666,40 @@ export function useAgent(): UseAgentState & UseAgentActions {
     recognition.onstart = () => setEscuchando(true);
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const transcript = event.results[0][0].transcript;
-      // Enviar la transcripción como si fuera texto escrito
-      void sendMessage(transcript);
+      const transcript = event.results[0][0].transcript.toLowerCase().trim();
+
+      // ══ MODO CONFIRMACIÓN POR VOZ ═══════════════════════════════════
+      // Si hay una TaskCard en estado 'pendiente', interceptar palabras clave
+      // en lugar de enviar el transcript a Ollama.
+      const tareaActiva = pendingTaskRef.current;
+      if (tareaActiva) {
+        const palabrasConfirmar = ['sí', 'si', 'confirmar', 'confirmo', 'proceder', 'aceptar', 'ejecutar', 'ejecuto', 'procedo'];
+        const palabrasCancelar  = ['no', 'cancelar', 'cancelo', 'rechazar', 'rechazo', 'cancelado'];
+
+        const esConfirmacion = palabrasConfirmar.some(p => transcript.includes(p));
+        const esCancelacion  = palabrasCancelar.some(p  => transcript.includes(p));
+
+        if (esConfirmacion) {
+          // Confirmación por voz: ejecutar tarea y limpiar pendingTaskRef
+          emitirVoz('Confirmando la tarea. Ejecutando ahora.');
+          void confirmarTarea(tareaActiva.id);
+          return;
+        }
+        if (esCancelacion) {
+          // Cancelación por voz: rechazar tarea y limpiar pendingTaskRef
+          emitirVoz('Tarea cancelada.');
+          rechazarTarea(tareaActiva.id);
+          pendingTaskRef.current = null;
+          return;
+        }
+        // Palabra no reconocida como clave — informar y no enviar a Ollama
+        emitirVoz('No te entendí. Di sí para confirmar o no para cancelar.');
+        return;
+      }
+
+      // ══ MODO NORMAL ══════════════════════════════════════════
+      // No hay tarea pendiente — enviar el transcript como mensaje normal a Ollama
+      void sendMessage(event.results[0][0].transcript);
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -551,7 +714,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
 
     recognitionRef.current = recognition;
     recognition.start();
-  }, [escuchando, sendMessage]);
+  }, [escuchando, sendMessage, confirmarTarea, rechazarTarea]);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ACCIÓN: Cancelar generación en curso
@@ -564,6 +727,23 @@ export function useAgent(): UseAgentState & UseAgentActions {
   const limpiarError = useCallback((): void => {
     setAgentError(null);
   }, []);
+
+  /**
+   * Inyecta un mensaje del agente directamente en la lista de mensajes,
+   * sin pasar por Ollama. Usado para la rutina de bienvenida asíncrona.
+   */
+  const inyectarMensajeAgente = useCallback((texto: string): void => {
+    agregarMensaje({
+      id: `msg-sistema-${Date.now()}`,
+      content: texto,
+      timestamp: new Date().toISOString(),
+      senderId: 'agent',
+      type: 'text',
+      isEdited: false,
+      reactions: [],
+      replyTo: null,
+    });
+  }, [agregarMensaje]);
 
   return {
     // State
@@ -580,6 +760,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
     rechazarTarea,
     cancelarGeneracion,
     limpiarError,
+    inyectarMensajeAgente,
   };
 }
 
@@ -602,6 +783,10 @@ function formatearResultado(
       return `☁️ Sincronización completada. Items procesados: ${resultado.items_sincronizados ?? '—'}.`;
     case 'CONFIRMAR_RECEPCION':
       return '✅ Recepción confirmada y registrada.';
+    case 'CREAR_PRODUCTO':
+      return '📤 Orden de recepción generada y enviada al Operativo de Inventario.';
+    case 'AUTORIZAR_AJUSTE':
+      return '✅ Ajuste autorizado. El Operativo debe confirmar la ejecución en bodega.';
     default:
       return String(resultado.message ?? 'Operación completada.');
   }

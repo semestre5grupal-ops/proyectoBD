@@ -40,8 +40,6 @@ import {
 import { BaseLayout } from "@/components/layouts/base-layout"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,7 +50,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 
-import { useAgent } from "@/app/chat/hooks/use-agent"
+import { useAgent, emitirVoz } from "@/app/chat/hooks/use-agent"
 import { MessageList } from "@/app/chat/components/message-list"
 import { MessageInput } from "@/app/chat/components/message-input"
 import { mapearRolJWT } from "@/app/chat/prompts/system-prompts"
@@ -188,6 +186,101 @@ export default function ChatAgentePage() {
       // No usamos sendMessage para no invocar a Ollama — solo UI
     }
   }, [agent.mensajes.length])
+
+  // ── Rutina de bienvenida asíncrona — JEFE (8) y OPERATIVO (10) ────────────
+  // Se ejecuta UNA sola vez al montar.
+  // IMPORTANTE: la condición compara el id_rol NUMÉRICO puro del JWT,
+  // sin pasar por mapearRolJWT(), para evitar falsos negativos cuando
+  // el token de Alejandro no incluye el campo 'rol' como string semántico.
+  const bienvenidaSentRef = useRef(false)
+  useEffect(() => {
+    if (bienvenidaSentRef.current) return
+    bienvenidaSentRef.current = true
+
+    // 1. Leer y decodificar el JWT
+    const token = localStorage.getItem("jwt_token")
+    if (!token) {
+      console.log("[Bienvenida] No hay jwt_token en localStorage — saliendo.")
+      return
+    }
+
+    let payload: { id_rol?: number; rol?: string; usu_nombre?: string }
+    try {
+      const parts = token.split(".")
+      if (parts.length !== 3) return
+      payload = JSON.parse(atob(parts[1])) as typeof payload
+    } catch {
+      console.warn("[Bienvenida] Token malformado — saliendo.")
+      return
+    }
+
+    // 2. Comparación por ID NUMÉRICO PURO (8 = JEFE, 10 = OPERATIVO)
+    //    Hacemos Number() por si el JWT lo envía como string "8".
+    const idRol = Number(payload.id_rol)
+    console.log("[Bienvenida] id_rol detectado:", idRol, "| rol string:", payload.rol)
+
+    if (idRol !== 8 && idRol !== 10) {
+      console.log("[Bienvenida] Rol no requiere bienvenida (id_rol:", idRol, ") — saliendo.")
+      return
+    }
+
+    const nombreUsuario = payload.usu_nombre ?? "equipo"
+    const apiBase = (import.meta.env.VITE_API_INVENTARIO as string | undefined) ?? "http://localhost:4000"
+
+    console.log("[Bienvenida] Consultando pendientes para id_rol:", idRol, "→", apiBase)
+
+    // 3. Fetch al endpoint de tareas pendientes
+    fetch(`${apiBase}/api/inventario/tareas/pendientes`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        console.log("[Bienvenida] Status HTTP:", res.status)
+        return res.ok ? res.json() : null
+      })
+      .then((json: { success: boolean; total: number; data?: Array<{ mensaje_usuario?: string; accion?: string }> } | null) => {
+        // ── LOG DE AUDITORÍA ─────────────────────────────────────────────────
+        console.log("TAREAS RECIBIDAS EN FRONT:", json)
+
+        if (!json?.success || json.total === 0) {
+          console.log("[Bienvenida] Sin tareas pendientes (total:", json?.total ?? 0, ")")
+          return
+        }
+
+        const n = json.total
+        const pendientes = json.data ?? []
+
+        // Resúmenes de los primeros dos mensajes
+        const resumen1 = pendientes[0]?.mensaje_usuario ?? pendientes[0]?.accion ?? "una tarea pendiente"
+        const resumen2 = pendientes[1]?.mensaje_usuario ?? pendientes[1]?.accion ?? "otra tarea pendiente"
+
+        let mensajeBienvenida: string
+
+        if (n === 1) {
+          mensajeBienvenida =
+            `Buenos días ${nombreUsuario}. Tienes un mensaje pendiente en tu bandeja de inventario. ` +
+            `${resumen1}. ` +
+            `¿Deseas confirmarlo ahora por voz?`
+        } else {
+          mensajeBienvenida =
+            `Buenos días ${nombreUsuario}. Tienes ${n} mensajes pendientes en tu bandeja de inventario. ` +
+            `El primero es: ${resumen1}. ` +
+            `Y el segundo es: ${resumen2}. ` +
+            `¿Con cuál de estas acciones te gustaría empezar a trabajar hoy?`
+        }
+
+        console.log("[Bienvenida] Mensaje generado:", mensajeBienvenida)
+
+        // 4. Inyectar en el chat sin invocar Ollama
+        agent.inyectarMensajeAgente(mensajeBienvenida)
+
+        // 5. Leer en voz alta con delay para que el DOM renderice
+        setTimeout(() => emitirVoz(mensajeBienvenida), 400)
+      })
+      .catch((err) => {
+        console.warn("[Bienvenida] Error al obtener tareas pendientes:", err)
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Solo al montar — intencionalmente sin deps
 
   // ── Adaptador de tipos: MensajeERP → Message (para MessageList) ────────────
   // MessageList recibe Message[] del Zustand original.
@@ -392,57 +485,52 @@ export default function ChatAgentePage() {
             ÁREA DE MENSAJES
         ══════════════════════════════════════════════════════════════════ */}
         <div className="flex-1 min-h-0 flex flex-col border-x border-b rounded-b-lg overflow-hidden bg-background">
-          <ScrollArea className="flex-1">
-            <div className="flex flex-col gap-0">
 
-              {/* ── Mensaje de bienvenida del sistema ────────────────── */}
-              <div className="flex gap-3 px-4 pt-5 pb-3">
-                <div className="w-8 shrink-0">
-                  <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-                    <Bot size={16} className="text-primary" />
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Agente ERP · {rolCfg.label}
-                  </span>
-                  <div className="rounded-lg px-3 py-2 bg-muted text-sm max-w-lg">
-                    {MENSAJES_BIENVENIDA[rolEfectivo]}
-                  </div>
-                  <span className="text-[10px] text-muted-foreground">
-                    Sistema activo
-                  </span>
-                </div>
+          {/* ── Mensaje de bienvenida — fijo en la parte superior (no scrollea) */}
+          <div className="shrink-0 flex gap-3 px-4 pt-5 pb-3 border-b border-border/40">
+            <div className="w-8 shrink-0">
+              <div className="h-8 w-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
+                <Bot size={16} className="text-primary" />
               </div>
-
-              <Separator className="mx-4 my-1" />
-
-              {/* ── Lista de mensajes del agente ─────────────────────── */}
-              {agent.mensajes.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
-                  <div className="h-14 w-14 rounded-2xl bg-muted flex items-center justify-center">
-                    <Brain size={28} className="opacity-40" />
-                  </div>
-                  <p className="text-sm">
-                    Escribe una instrucción o usa el micrófono para empezar
-                  </p>
-                </div>
-              ) : (
-                <div className="px-0">
-                  <MessageList
-                    messages={mensajesAdaptados}
-                    users={[]}
-                    currentUserId="user"
-                    onConfirmarTarea={agent.confirmarTarea}
-                    onRechazarTarea={agent.rechazarTarea}
-                  />
-                </div>
-              )}
-
-              {/* Scroll anchor */}
-              <div ref={bottomRef} className="h-2" />
             </div>
-          </ScrollArea>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-muted-foreground">
+                Agente ERP · {rolCfg.label}
+              </span>
+              <div className="rounded-lg px-3 py-2 bg-muted text-sm max-w-lg">
+                {MENSAJES_BIENVENIDA[rolEfectivo]}
+              </div>
+              <span className="text-[10px] text-muted-foreground">
+                Sistema activo
+              </span>
+            </div>
+          </div>
+
+          {/* ── Área de mensajes — un solo scroll container nativo ─────────────
+              ⚠️  NO anidar con otro ScrollArea: MessageList ya gestiona su
+              propio scroll con bottomRef.scrollIntoView({ behavior:'smooth' }).
+              overflow-y-auto + flex-1 + min-h-0 = altura controlada y scroll nativo. */}
+          {agent.mensajes.length === 0 ? (
+            <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
+              <div className="h-14 w-14 rounded-2xl bg-muted flex items-center justify-center">
+                <Brain size={28} className="opacity-40" />
+              </div>
+              <p className="text-sm">
+                Escribe una instrucción o usa el micrófono para empezar
+              </p>
+            </div>
+          ) : (
+            /* MessageList ocupa TODO el espacio disponible y gestiona su propio scroll */
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <MessageList
+                messages={mensajesAdaptados}
+                users={[]}
+                currentUserId="user"
+                onConfirmarTarea={agent.confirmarTarea}
+                onRechazarTarea={agent.rechazarTarea}
+              />
+            </div>
+          )}
 
           {/* ══════════════════════════════════════════════════════════════
               INPUT DE MENSAJE / CONTROL DE VOZ

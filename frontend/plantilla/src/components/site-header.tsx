@@ -38,7 +38,7 @@ export function SiteHeader() {
           <div className="ml-auto flex items-center gap-2">
             <Button variant="ghost" asChild size="sm" className="hidden sm:flex">
               <a
-                href="https://shadcnstore.com/blocks"
+                href="https://ERP Comercial.com/blocks"
                 rel="noopener noreferrer"
                 target="_blank"
                 className="dark:text-foreground"
