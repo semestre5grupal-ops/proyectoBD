@@ -67,7 +67,25 @@ const data = {
         },
         // Gabriel — Ventas: agregar aquí cuando esté listo
         // Liz — Compras: agregar aquí cuando esté listo
-        // Alejandro — Talento Humano: agregar aquí cuando esté listo
+        {
+          title: "Talento Humano (Alejandro)",
+          url: "#",
+          icon: Users,
+          items: [
+            { title: "Departamentos", url: "/tthh/departamentos" },
+            { title: "Cargos", url: "/tthh/cargos" },
+            { title: "Períodos", url: "/tthh/periodos" },
+            { title: "Empleados", url: "/tthh/empleados" },
+            { title: "Contratos", url: "/tthh/contratos" },
+            { title: "Dependientes", url: "/tthh/dependientes" },
+            { title: "Horarios", url: "/tthh/horarios" },
+            { title: "Asistencias", url: "/tthh/asistencias" },
+            { title: "Permisos", url: "/tthh/permisos" },
+            { title: "Vacaciones", url: "/tthh/vacaciones" },
+            { title: "Rubros", url: "/tthh/rubros" },
+            { title: "Roles de Pago", url: "/tthh/roles-pago" },
+          ],
+        },
         {
           title: "Ajustes (Alejandro)",
           url: "#",

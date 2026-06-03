@@ -44,6 +44,11 @@ const AppearanceSettings = lazy(() => import('@/app/settings/appearance/page'))
 const NotificationSettings = lazy(() => import('@/app/settings/notifications/page'))
 const ConnectionSettings = lazy(() => import('@/app/settings/connections/page'))
 
+// TTHH Pages
+const Departamentos = lazy(() => import('@/app/tthh/departamentos/page'))
+const Cargos = lazy(() => import('@/app/tthh/cargos/page'))
+const Periodos = lazy(() => import('@/app/tthh/periodos/page'))
+
 export interface RouteConfig {
   path: string
   element: React.ReactNode
@@ -77,6 +82,18 @@ export const routes: RouteConfig[] = [
   {
     path: "/dashboard/inventario",
     element: <DashboardInventario />
+  },
+  {
+    path: "/tthh/departamentos",
+    element: <Departamentos />
+  },
+  {
+    path: "/tthh/cargos",
+    element: <Cargos />
+  },
+  {
+    path: "/tthh/periodos",
+    element: <Periodos />
   },
 
   // Application Routes

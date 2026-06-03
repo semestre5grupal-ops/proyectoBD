@@ -1,0 +1,84 @@
+import { apiFetch } from './api';
+
+export interface Periodo {
+  id_rolpago2?: number; // Backend usa id_rolpago2 como PK de periodo
+  per_descripcion: string;
+  per_fechainicio: string;
+  per_fechafin: string;
+  per_estado: string;
+}
+
+export const periodoService = {
+  getAll: async () => {
+    const response = await apiFetch('/periodo');
+    if (!response.ok) throw new Error('Error al obtener periodos');
+    const json = await response.json();
+    return Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+  },
+
+  getById: async (id: number) => {
+    const response = await apiFetch(`/periodo/${id}`);
+    if (!response.ok) throw new Error('Error al obtener periodo');
+    const json = await response.json();
+    return json.data || json;
+  },
+
+  create: async (data: Partial<Periodo>) => {
+    const response = await apiFetch('/periodo', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Error al crear periodo');
+    const json = await response.json();
+    return json.data || json;
+  },
+
+  update: async (id: number, data: Partial<Periodo>) => {
+    const response = await apiFetch(`/periodo/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('Error al actualizar periodo');
+    const json = await response.json();
+    return json.data || json;
+  },
+
+  delete: async (id: number) => {
+    const response = await apiFetch(`/periodo/${id}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('Error al eliminar periodo');
+    const json = await response.json();
+    return json.data || json;
+  },
+
+  createYearPeriods: async (year: number) => {
+    const monthNames = [
+      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ];
+    
+    const promises = monthNames.map((month, index) => {
+      // Meses en JS son 0-indexados. 
+      // El primer día es el 1.
+      const startDate = new Date(year, index, 1);
+      // Para obtener el último día, pasamos el día 0 del mes Siguiente.
+      const endDate = new Date(year, index + 1, 0);
+
+      // Formato YYYY-MM-DD
+      const startStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-01`;
+      const endStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+
+      const data: Partial<Periodo> = {
+        per_descripcion: `${month} ${year}`,
+        per_fechainicio: startStr,
+        per_fechafin: endStr,
+        per_estado: "ABI"
+      };
+
+      return periodoService.create(data);
+    });
+
+    return Promise.all(promises);
+  }
+};

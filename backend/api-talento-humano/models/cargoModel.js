@@ -11,19 +11,19 @@ const getCargoById = async (id) => {
 };
 
 const createCargo = async (data) => {
-  const { id_departamento, car_nombre, car_sueldobase, car_feccreacion } = data;
+  const { id_departamento, car_nombre, car_sueldobase, car_feccreacion, car_estado } = data;
   const result = await pool.query(
-    'INSERT INTO cargo (id_departamento, car_nombre, car_sueldobase, car_feccreacion) VALUES ($1, $2, $3, $4) RETURNING *',
-    [id_departamento, car_nombre, car_sueldobase, car_feccreacion]
+    'INSERT INTO cargo (id_departamento, car_nombre, car_sueldobase, car_feccreacion, car_estado) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+    [id_departamento, car_nombre, car_sueldobase, car_feccreacion, car_estado || 'ACT']
   );
   return result.rows[0];
 };
 
 const updateCargo = async (id, data) => {
-  const { id_departamento, car_nombre, car_sueldobase, car_feccreacion } = data;
+  const { id_departamento, car_nombre, car_sueldobase, car_feccreacion, car_estado } = data;
   const result = await pool.query(
-    'UPDATE cargo SET id_departamento = $1, car_nombre = $2, car_sueldobase = $3, car_feccreacion = $4 WHERE id_cargo = $5 RETURNING *',
-    [id_departamento, car_nombre, car_sueldobase, car_feccreacion, id]
+    'UPDATE cargo SET id_departamento = $1, car_nombre = $2, car_sueldobase = $3, car_feccreacion = $4, car_estado = $5 WHERE id_cargo = $6 RETURNING *',
+    [id_departamento, car_nombre, car_sueldobase, car_feccreacion, car_estado || 'ACT', id]
   );
   return result.rows[0];
 };
