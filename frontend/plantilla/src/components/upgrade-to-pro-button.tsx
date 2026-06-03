@@ -8,7 +8,7 @@ import { Rocket, Blocks, LayoutDashboard, ArrowRight } from "lucide-react"
 import { assetUrl } from "@/lib/utils"
 
 
-const SHADCN_BLOCKS_URL = "https://shadcnstore.com/blocks"
+const SHADCN_BLOCKS_URL = "https://ERP Comercial.com/blocks"
 
 export function UpgradeToProButton() {
 

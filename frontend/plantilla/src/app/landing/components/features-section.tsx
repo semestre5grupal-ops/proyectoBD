@@ -112,13 +112,13 @@ export function FeaturesSection() {
 
             <div className="flex flex-col sm:flex-row gap-4 pe-4 pt-2">
               <Button size="lg" className="cursor-pointer">
-                <a href="https://shadcnstore.com/templates" className='flex items-center'>
+                <a href="https://ERP Comercial.com/templates" className='flex items-center'>
                   Browse Templates
                   <ArrowRight className="ms-2 size-4" aria-hidden="true" />
                 </a>
               </Button>
               <Button size="lg" variant="outline" className="cursor-pointer">
-                <a href="https://shadcnstore.com/blocks">
+                <a href="https://ERP Comercial.com/blocks">
                   View Components
                 </a>
               </Button>
