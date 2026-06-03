@@ -36,6 +36,8 @@ const UnderMaintenance = lazy(() => import('@/app/errors/under-maintenance/page'
 
 // Settings pages
 const UserSettings = lazy(() => import('@/app/settings/user/page'))
+const UsuariosSettings = lazy(() => import('@/app/settings/usuarios/page'))
+const RolesSettings = lazy(() => import('@/app/settings/roles/page'))
 const AccountSettings = lazy(() => import('@/app/settings/account/page'))
 const BillingSettings = lazy(() => import('@/app/settings/billing/page'))
 const AppearanceSettings = lazy(() => import('@/app/settings/appearance/page'))
@@ -177,6 +179,14 @@ export const routes: RouteConfig[] = [
   {
     path: "/settings/user",
     element: <UserSettings />
+  },
+  {
+    path: "/settings/usuarios",
+    element: <UsuariosSettings />
+  },
+  {
+    path: "/settings/roles",
+    element: <RolesSettings />
   },
   {
     path: "/settings/account",
