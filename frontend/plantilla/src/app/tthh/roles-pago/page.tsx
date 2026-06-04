@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label"
 import { Edit2, Trash2, Plus, DollarSign, Search, Calculator, CheckCircle, X } from "lucide-react"
 import { toast } from "sonner"
+import { usePermissions } from "@/hooks/usePermissions"
 
 interface SelectedRubro {
   id: string; // unique id for frontend
@@ -24,6 +25,7 @@ interface SelectedRubro {
 }
 
 export default function RolesPagoPage() {
+  const { canApprove } = usePermissions()
   const [roles, setRoles] = useState<RolPago[]>([])
   const [empleados, setEmpleados] = useState<Empleado[]>([])
   const [rubros, setRubros] = useState<Rubro[]>([])
@@ -435,7 +437,7 @@ export default function RolesPagoPage() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
-                        {(rol.rol_estado === 'GEN' || rol.rol_estado === 'Generado' || rol.rol_estado === 'PEN' || rol.rol_estado === 'Pendiente') && (
+                        {(canApprove && (rol.rol_estado === 'GEN' || rol.rol_estado === 'Generado' || rol.rol_estado === 'PEN' || rol.rol_estado === 'Pendiente')) && (
                           <Button variant="ghost" size="icon" title="Aprobar (Marcar Pagado)" onClick={() => handleApprove(rol)}>
                             <CheckCircle size={18} className="text-emerald-600" />
                           </Button>
@@ -443,7 +445,7 @@ export default function RolesPagoPage() {
                         <Button variant="ghost" size="icon" title="Editar" onClick={() => handleOpenModal(rol)}>
                           <Edit2 size={16} className="text-blue-500" />
                         </Button>
-                        {(rol.rol_estado !== 'ANU' && rol.rol_estado !== 'Anulado') && (
+                        {(canApprove && rol.rol_estado !== 'ANU' && rol.rol_estado !== 'Anulado') && (
                           <Button variant="ghost" size="icon" title="Anular" onClick={() => handleDelete(rol)}>
                             <Trash2 size={16} className="text-red-500" />
                           </Button>

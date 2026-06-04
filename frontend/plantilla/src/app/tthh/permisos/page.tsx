@@ -9,10 +9,12 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Edit2, Trash2, Plus, FileSignature, Search, CheckCircle, XCircle } from "lucide-react"
+import { Edit2, Trash2, Plus, Search, FileSignature, CheckCircle, XCircle } from "lucide-react"
 import { toast } from "sonner"
+import { usePermissions } from "@/hooks/usePermissions"
 
 export default function PermisosPage() {
+  const { canApprove } = usePermissions()
   const [permisos, setPermisos] = useState<Permiso[]>([])
   const [empleados, setEmpleados] = useState<Empleado[]>([])
   const [loading, setLoading] = useState(true)
@@ -280,7 +282,7 @@ export default function PermisosPage() {
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
-                          {(per.per_estado === 'PEN' || per.per_estado === 'Pendiente') && (
+                          {(canApprove && (per.per_estado === 'PEN' || per.per_estado === 'Pendiente')) && (
                             <>
                               <Button variant="ghost" size="icon" title="Aprobar" onClick={() => handleApprove(per)}>
                                 <CheckCircle size={16} className="text-emerald-600" />

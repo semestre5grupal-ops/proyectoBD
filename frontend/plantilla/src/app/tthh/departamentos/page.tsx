@@ -137,7 +137,6 @@ export default function DepartamentosPage() {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrido un error al inactivar"))
     }
-    }
   }
 
   return (
