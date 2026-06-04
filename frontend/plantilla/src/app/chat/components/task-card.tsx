@@ -206,6 +206,15 @@ export function TaskCard({ tarea, onConfirmar, onRechazar }: TaskCardProps) {
       return
     }
 
+    // FIX NUCLEAR: Extraer id fijo de la DB original
+    const dbPayload = typeof tarea.payload_json === 'string' ? JSON.parse(tarea.payload_json) : (tarea.payload_json || {});
+    const idFijo = dbPayload.idCabecera || dbPayload.id_compra || dbPayload.id_documento || tarea.payload?.idCabecera;
+    
+    // Inyectarlo en el payload antes de confirmarlo
+    if (idFijo) {
+      tarea.payload.idCabecera = idFijo;
+    }
+
     setProcesando(true)
     try {
       await onConfirmar(tarea.id, cantidadReal)

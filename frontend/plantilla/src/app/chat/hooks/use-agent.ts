@@ -365,9 +365,18 @@ export function useAgent(): UseAgentState & UseAgentActions {
           console.log("PAYLOAD A EJECUTAR (CONFIRMAR_RECEPCION):", payload);
           const p = payload as Record<string, any>;
           const dataPayload = p.payload_json || p || {};
-          const idCabecera = dataPayload.idCabecera || dataPayload.id_cabecera || dataPayload.id_compra || dataPayload.id_documento;
+          
+          let idSeguro = dataPayload.idCabecera || dataPayload.id_cabecera || dataPayload.id_compra || dataPayload.id_documento;
+          const textoUsr = tarea.instruccion_original || tarea.mensaje_usuario || '';
+          // ESCUDO DE VOZ: Si la IA omitió el ID en el JSON, extráelo directamente de lo que habló el usuario
+          if (!idSeguro && textoUsr) {
+              const match = textoUsr.match(/\d{3,}/); // Atrapa cualquier número de 3+ dígitos (ej: 1013)
+              if (match) idSeguro = parseInt(match[0], 10);
+          }
+          // Forzamos la reasignación para que pase la validación y dispare el RPC
+          p.idCabecera = idSeguro;
 
-          if (!idCabecera) {
+          if (!p.idCabecera) {
             throw new Error("No se encontró el idCabecera en el payload para confirmar la recepción.");
           }
 
@@ -416,9 +425,18 @@ export function useAgent(): UseAgentState & UseAgentActions {
           console.log("PAYLOAD A EJECUTAR (CONFIRMAR_ENTREGA):", payload);
           const p = payload as Record<string, any>;
           const dataPayload = p.payload_json || p || {};
-          const idCabecera = dataPayload.idCabecera || dataPayload.id_cabecera || dataPayload.id_compra || dataPayload.id_documento;
+          
+          let idSeguro = dataPayload.idCabecera || dataPayload.id_cabecera || dataPayload.id_compra || dataPayload.id_documento;
+          const textoUsr = tarea.instruccion_original || tarea.mensaje_usuario || '';
+          // ESCUDO DE VOZ: Si la IA omitió el ID en el JSON, extráelo directamente de lo que habló el usuario
+          if (!idSeguro && textoUsr) {
+              const match = textoUsr.match(/\d{3,}/); // Atrapa cualquier número de 3+ dígitos (ej: 1013)
+              if (match) idSeguro = parseInt(match[0], 10);
+          }
+          // Forzamos la reasignación para que pase la validación y dispare el RPC
+          p.idCabecera = idSeguro;
 
-          if (!idCabecera) {
+          if (!p.idCabecera) {
             throw new Error("No se encontró el idCabecera en el payload para confirmar la entrega.");
           }
 
