@@ -52,8 +52,13 @@ export default function CargosPage() {
         cargoService.getAll(currentPage, ITEMS_PER_PAGE, searchTerm),
         departamentoService.getAllList()
       ])
-      setCargos(cargosRes.data)
-      setTotalPages(cargosRes.totalPages || 1)
+      if (Array.isArray(cargosRes)) {
+        setCargos(cargosRes.filter((c: Cargo) => c.car_estado !== 'INC'))
+        setTotalPages(Math.ceil(cargosRes.length / ITEMS_PER_PAGE) || 1)
+      } else {
+        setCargos(cargosRes.data || [])
+        setTotalPages(cargosRes.totalPages || 1)
+      }
       setDepartamentos(Array.isArray(deptosData) ? deptosData : [])
     } catch (err: any) {
       setError(err.message || "Error al cargar datos")

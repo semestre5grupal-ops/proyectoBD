@@ -76,9 +76,14 @@ export default function RolesPagoPage() {
         contratoService.getAll().catch(() => []),
         rubrosxrolService.getAll().catch(() => [])
       ])
-      
       setRoles(Array.isArray(rolData) ? rolData : [])
-      setEmpleados(Array.isArray(empData) ? empData.filter(e => e.emp_estado !== 'INC' && e.emp_estado !== 'INA') : [])
+      
+      if (Array.isArray(empData)) {
+        setEmpleados(empData.filter(e => e.emp_estado !== 'INC' && e.emp_estado !== 'INA'))
+      } else {
+        setEmpleados((empData.data || []).filter((e: Empleado) => e.emp_estado !== 'INC' && e.emp_estado !== 'INA'))
+      }
+
       setRubros(Array.isArray(rubData) ? rubData.filter((r: Rubro) => r.rub_estado === 'ACT') : [])
       setPeriodos(Array.isArray(perData) ? perData.filter((p: Periodo) => p.per_estado !== 'INC' && p.per_estado !== 'CER') : [])
       setContratos(Array.isArray(conData) ? conData.filter((c: any) => c.con_estado !== 'INC') : [])

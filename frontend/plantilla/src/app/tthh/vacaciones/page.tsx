@@ -50,7 +50,11 @@ export default function VacacionesPage() {
       
       setVacaciones(Array.isArray(vacData) ? vacData.filter((v: Vacacion) => v.vac_estado !== 'INC') : [])
       setContratos(Array.isArray(conData) ? conData : [])
-      setEmpleados(Array.isArray(empData) ? empData : [])
+      if (Array.isArray(empData)) {
+        setEmpleados(empData)
+      } else {
+        setEmpleados(empData.data || [])
+      }
       setCurrentPage(1)
     } catch (err: any) {
       setError(err.message || "Error al cargar datos")

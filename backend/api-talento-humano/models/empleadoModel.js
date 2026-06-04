@@ -4,11 +4,11 @@ const getEmpleados = async (options = {}) => {
   const { page = 1, limit = 20, search = '' } = options;
 
   const offset = (page - 1) * limit;
-  let query = "SELECT * FROM empleados WHERE emp_estado != 'INC'";
+  let query = "SELECT * FROM empleados";
   const values = [];
 
   if (search) {
-    query += " AND (emp_cedula ILIKE $1 OR emp_nom1 ILIKE $1 OR emp_ap1 ILIKE $1 OR CONCAT(emp_nom1, ' ', emp_ap1) ILIKE $1)";
+    query += " WHERE (emp_cedula ILIKE $1 OR emp_nom1 ILIKE $1 OR emp_ap1 ILIKE $1 OR CONCAT(emp_nom1, ' ', emp_ap1) ILIKE $1)";
     values.push(`%${search}%`);
   }
 

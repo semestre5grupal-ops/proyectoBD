@@ -55,8 +55,13 @@ export default function EmpleadosPage() {
         empleadoService.getEmpleados(currentPage, ITEMS_PER_PAGE, searchTerm),
         departamentoService.getAllList()
       ])
-      setEmpleados(empRes.data || [])
-      setTotalPages(empRes.totalPages || 1)
+      if (Array.isArray(empRes)) {
+        setEmpleados(empRes.filter(e => e.emp_estado !== 'INC' && e.emp_estado !== 'INA'))
+        setTotalPages(Math.ceil(empRes.length / ITEMS_PER_PAGE) || 1)
+      } else {
+        setEmpleados(empRes.data || [])
+        setTotalPages(empRes.totalPages || 1)
+      }
       setDepartamentos(Array.isArray(depData) ? depData : [])
     } catch (err: any) {
       setError(err.message || "Error al cargar datos")
