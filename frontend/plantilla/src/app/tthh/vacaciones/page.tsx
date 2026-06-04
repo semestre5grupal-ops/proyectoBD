@@ -148,13 +148,14 @@ export default function VacacionesPage() {
 
       if (editingVac && editingVac.id_vacacion) {
         await vacacionService.update(editingVac.id_vacacion, data)
+        setVacaciones(prev => prev.map(v => v.id_vacacion === editingVac.id_vacacion ? { ...v, ...data } : v))
         toast.success("Saldo de vacaciones actualizado")
       } else {
-        await vacacionService.create(data)
+        const created = await vacacionService.create(data)
+        setVacaciones(prev => [created, ...prev])
         toast.success("Saldo de vacaciones registrado")
       }
       handleCloseModal()
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al guardar"))
@@ -167,8 +168,8 @@ export default function VacacionesPage() {
 
     try {
       await vacacionService.delete(vac.id_vacacion)
+      setVacaciones(prev => prev.filter(v => v.id_vacacion !== vac.id_vacacion))
       toast.success("Registro eliminado")
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al eliminar"))

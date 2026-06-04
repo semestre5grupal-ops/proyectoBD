@@ -100,17 +100,24 @@ export default function DepartamentosPage() {
       }
 
       if (editingDept && editingDept.id_departamento) {
-        await departamentoService.update(editingDept.id_departamento, data)
+        const updated = await departamentoService.update(editingDept.id_departamento, data)
+        // Optimistic: actualizar en lista local sin refetch
+        setDepartamentos(prev => prev.map(d =>
+          d.id_departamento === editingDept.id_departamento
+            ? { ...d, dep_nombre: depNombre }
+            : d
+        ))
         toast.success("Departamento actualizado exitosamente")
       } else {
-        await departamentoService.create(data)
+        const created = await departamentoService.create(data)
+        // Optimistic: insertar al inicio de la lista
+        setDepartamentos(prev => [created, ...prev])
         toast.success("Departamento creado exitosamente")
       }
       handleCloseModal()
-      fetchData()
     } catch (err: any) {
       console.error(err)
-      toast.error("Error: " + (err.message || "Ocurrió un error al guardar"))
+      toast.error("Error: " + (err.message || "Ocurrido un error al guardar"))
     }
   }
 
@@ -123,11 +130,12 @@ export default function DepartamentosPage() {
         ...dept,
         dep_estado: "INC"
       })
+      // Optimistic: quitar de la lista local
+      setDepartamentos(prev => prev.filter(d => d.id_departamento !== dept.id_departamento))
       toast.success("Departamento inactivado")
-      fetchData()
     } catch (err: any) {
       console.error(err)
-      toast.error("Error: " + (err.message || "Ocurrió un error al inactivar"))
+      toast.error("Error: " + (err.message || "Ocurrido un error al inactivar"))
     }
   }
 
@@ -208,10 +216,10 @@ export default function DepartamentosPage() {
             </Table>
             
             {/* Controles de Paginación */}
-            {filteredDepartamentos.length > ITEMS_PER_PAGE && (
+            {totalPages > 1 && (
               <div className="flex items-center justify-between px-4 py-3 border-t">
                 <div className="text-sm text-muted-foreground">
-                  Mostrando del {(currentPage - 1) * ITEMS_PER_PAGE + 1} al {Math.min(currentPage * ITEMS_PER_PAGE, filteredDepartamentos.length)} de {filteredDepartamentos.length} departamentos
+                  Página {currentPage} de {totalPages}
                 </div>
                 <div className="flex gap-2">
                   <Button 

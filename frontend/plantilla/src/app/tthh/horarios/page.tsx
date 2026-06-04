@@ -99,13 +99,14 @@ export default function HorariosPage() {
 
       if (editingHorario && editingHorario.id_horario) {
         await horarioService.update(editingHorario.id_horario, data)
+        setHorarios(prev => prev.map(h => h.id_horario === editingHorario.id_horario ? { ...h, ...data } : h))
         toast.success("Horario actualizado exitosamente")
       } else {
-        await horarioService.create(data)
+        const created = await horarioService.create(data)
+        setHorarios(prev => [created, ...prev])
         toast.success("Horario creado exitosamente")
       }
       handleCloseModal()
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al guardar"))
@@ -118,8 +119,8 @@ export default function HorariosPage() {
 
     try {
       await horarioService.delete(hor.id_horario)
+      setHorarios(prev => prev.filter(h => h.id_horario !== hor.id_horario))
       toast.success("Horario eliminado")
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al eliminar"))

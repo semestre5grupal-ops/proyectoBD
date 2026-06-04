@@ -28,7 +28,8 @@ const login = async (req, res) => {
       { 
         id_usuario: usuario.id_usuario, 
         id_rol: usuario.id_rol,
-        usu_nombre: usuario.usu_nombre 
+        usu_nombre: usuario.usu_nombre,
+        rol_nombre: usuario.rol_nombre
       },
       process.env.JWT_SECRET || 'super_secreto_para_desarrollo_local_123',
       { expiresIn: process.env.JWT_EXPIRES_IN || '1d' }
@@ -41,7 +42,8 @@ const login = async (req, res) => {
       usuario: {
         id_usuario: usuario.id_usuario,
         usu_nombre: usuario.usu_nombre,
-        id_rol: usuario.id_rol
+        id_rol: usuario.id_rol,
+        rol_nombre: usuario.rol_nombre
       }
     });
 

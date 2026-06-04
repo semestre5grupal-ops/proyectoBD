@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label"
 import { Edit2, Trash2, Plus, DollarSign, Search, Calculator, CheckCircle, X } from "lucide-react"
 import { toast } from "sonner"
+import { usePermissions } from "@/hooks/usePermissions"
 
 interface SelectedRubro {
   id: string; // unique id for frontend
@@ -24,6 +25,7 @@ interface SelectedRubro {
 }
 
 export default function RolesPagoPage() {
+  const { canApprove } = usePermissions()
   const [roles, setRoles] = useState<RolPago[]>([])
   const [empleados, setEmpleados] = useState<Empleado[]>([])
   const [rubros, setRubros] = useState<Rubro[]>([])
@@ -53,6 +55,9 @@ export default function RolesPagoPage() {
 
   const [selectedRubros, setSelectedRubros] = useState<SelectedRubro[]>([])
 
+  // Periodo fijo por regla de negocio: Junio 2026
+  const PERIODO_ACTUAL_ID = '2026-06'
+
   useEffect(() => {
     fetchData()
   }, [])
@@ -60,45 +65,47 @@ export default function RolesPagoPage() {
   const fetchData = async () => {
     try {
       setLoading(true)
-      // Se carga de manera secuencial para no sobrecargar el backend (Render free tier) 
-      // Lotes de 2 para balancear velocidad y no saturar el backend
-      const [rolData, empData] = await Promise.all([
-        rolPagoService.getAll().catch(() => []),
-        empleadoService.getEmpleados().catch(() => [])
-      ])
-      
-      const [rubData, perData] = await Promise.all([
+      // 1. Carga principal: solo roles para que la tabla aparezca rápido
+      const rolData = await rolPagoService.getAll().catch(() => [])
+      setRoles(Array.isArray(rolData) ? rolData : [])
+      setLoading(false) // Mostrar tabla lo antes posible
+
+      // 2. Carga secundaria: datos para los dropdowns del modal (en segundo plano)
+      const [empData, rubData, perData, conData, rxrData] = await Promise.all([
+        empleadoService.getEmpleados(1, 500).catch(() => ({ data: [] })),
         rubroService.getAll().catch(() => []),
-        periodoService.getAll().catch(() => [])
-      ])
-      
-      const [conData, rxrData] = await Promise.all([
+        periodoService.getAllList().catch(() => []),
         contratoService.getAll().catch(() => []),
         rubrosxrolService.getAll().catch(() => [])
       ])
-      setRoles(Array.isArray(rolData) ? rolData : [])
-      
+
       if (Array.isArray(empData)) {
-        setEmpleados(empData.filter(e => e.emp_estado !== 'INC' && e.emp_estado !== 'INA'))
+        setEmpleados(empData)
       } else {
-        setEmpleados((empData.data || []).filter((e: Empleado) => e.emp_estado !== 'INC' && e.emp_estado !== 'INA'))
+        setEmpleados(empData.data || [])
       }
 
       setRubros(Array.isArray(rubData) ? rubData.filter((r: Rubro) => r.rub_estado === 'ACT') : [])
-      setPeriodos(Array.isArray(perData) ? perData.filter((p: Periodo) => p.per_estado !== 'INC' && p.per_estado !== 'CER') : [])
+      
+      const periodosRaw = Array.isArray(perData) ? perData : (perData as any).data || []
+      setPeriodos(periodosRaw.filter((p: Periodo) => p.per_estado !== 'INC' && p.per_estado !== 'CER'))
+      
       setContratos(Array.isArray(conData) ? conData.filter((c: any) => c.con_estado !== 'INC') : [])
       setRubrosxrol(Array.isArray(rxrData) ? rxrData : [])
       setCurrentPage(1)
     } catch (err: any) {
       setError(err.message || "Error al cargar datos")
-    } finally {
       setLoading(false)
     }
   }
 
-  const getEmpleadoName = (id: number) => {
+  const getEmpleadoName = (id: number, rol?: any) => {
+    // 1. Primero usamos el campo JOIN del backend (siempre disponible)
+    if (rol?.emp_nombre_completo) return rol.emp_nombre_completo
+    // 2. Fallback: búsqueda en memoria (cuando ya cargaron)
+    if (!id) return "Sin empleado"
     const emp = empleados.find(e => e.id_empleado === id)
-    return emp ? `${emp.emp_nom1} ${emp.emp_ap1}` : "Desconocido"
+    return emp ? `${emp.emp_nom1} ${emp.emp_ap1}` : `#${id}`
   }
 
   const getEstadoLabel = (estado: string) => {
@@ -113,7 +120,7 @@ export default function RolesPagoPage() {
 
   const filteredRoles = roles.filter(rol => {
     const term = searchTerm.toLowerCase()
-    const empName = getEmpleadoName(rol.id_empleado).toLowerCase()
+    const empName = getEmpleadoName(rol.id_empleado, rol).toLowerCase()
     const estadoLabel = getEstadoLabel(rol.rol_estado).toLowerCase()
     return (
       empName.includes(term) ||
@@ -153,7 +160,7 @@ export default function RolesPagoPage() {
       setEditingRol(null)
       setFormData({
         id_empleado: "",
-        id_rolpago2: "",
+        id_rolpago2: PERIODO_ACTUAL_ID, // Siempre Junio 2026 para nuevos roles
         rol_dias_trabajados: "30",
         rol_bontotal: "0",
         rol_comtotal: "0",
@@ -247,35 +254,30 @@ export default function RolesPagoPage() {
   }
 
   const handleSave = async () => {
-    // Determine active period dynamically
-    const activePeriod = periodos.find(p => p.per_estado === 'ABI' || p.per_estado === 'ACT') || periodos[0]
+    // Periodo FIJO: Junio 2026 (regla de negocio)
+    const periodoId = PERIODO_ACTUAL_ID
+    const periodoLabel = 'Junio 2026'
 
     if (!formData.id_empleado) {
       toast.error("Por favor selecciona un empleado")
       return
     }
 
-    if (!activePeriod) {
-      toast.error("No hay un periodo activo para generar el rol")
+    // Verificar que el periodo exista en la lista cargada
+    const periodoValido = periodos.find(p => String(p.id_rolpago2) === periodoId)
+    if (!periodoValido && periodos.length > 0) {
+      toast.error(`El periodo ${periodoLabel} no existe o no está activo. Crea los periodos primero.`)
       return
     }
 
-    // Prevenir error 500 de base de datos (restricción única)
+    // Prevenir duplicado: mismo empleado + mismo periodo
     if (!editingRol) {
-      const existingRole = roles.find(r => 
-        String(r.id_empleado) === String(formData.id_empleado) && 
-        String(r.id_rolpago2) === String(activePeriod.id_rolpago2) &&
-        r.rol_estado !== 'ANU' // Permitir crear si el anterior está anulado (depende de cómo se maneje en DB, pero usualmente la restricción es estricta)
+      const hasAnyRole = roles.find(r =>
+        String(r.id_empleado) === String(formData.id_empleado) &&
+        String(r.id_rolpago2) === periodoId
       )
-      
-      // La restricción única de Postgres no distingue por estado, si ya hay registro falla.
-      const hasAnyRole = roles.find(r => 
-        String(r.id_empleado) === String(formData.id_empleado) && 
-        String(r.id_rolpago2) === String(activePeriod.id_rolpago2)
-      )
-
       if (hasAnyRole) {
-        toast.error(`Este empleado ya tiene un rol de pago en el periodo activo. Por favor, edita el rol existente en lugar de crear uno nuevo.`)
+        toast.error(`Este empleado ya tiene un rol de pago en ${periodoLabel}. Edita el rol existente.`)
         return
       }
     }
@@ -284,19 +286,17 @@ export default function RolesPagoPage() {
       const data: RolPago = {
         ...(editingRol || {}),
         id_empleado: parseInt(formData.id_empleado),
-        id_rolpago2: editingRol ? editingRol.id_rolpago2 : (activePeriod.id_rolpago2 as number),
+        id_rolpago2: editingRol ? editingRol.id_rolpago2 : (periodoId as any),
         rol_dias_trabajados: parseInt(formData.rol_dias_trabajados) || 0,
         rol_bontotal: parseFloat(formData.rol_bontotal) || 0,
         rol_comtotal: parseFloat(formData.rol_comtotal) || 0,
         rol_destotal: parseFloat(formData.rol_destotal) || 0,
         rol_neto: parseFloat(formData.rol_neto) || 0,
-        rol_estado: "GEN" // Siempre nace como Generado
+        rol_estado: "GEN"
       }
 
       if (editingRol && editingRol.id_rol) {
         await rolPagoService.update(editingRol.id_rol, data)
-        
-        // Guardar SOLO los rubros NUEVOS añadidos durante la edición (identificables por el id generado "0.")
         for (const sr of selectedRubros) {
           if (sr.id.startsWith("0.") && sr.id_rubro && parseFloat(sr.cantidad) > 0) {
             await rubrosxrolService.create({
@@ -304,15 +304,13 @@ export default function RolesPagoPage() {
               id_rubros: parseInt(sr.id_rubro),
               dxe_cantidad: parseFloat(sr.cantidad),
               dxe_estado: 'ACT'
-            }).catch(e => console.error("Error al añadir rubro en edición:", e))
+            }).catch(e => console.error(e))
           }
         }
-        
+        setRoles(prev => prev.map(r => r.id_rol === editingRol.id_rol ? { ...r, ...data } : r))
         toast.success("Rol de pago actualizado")
       } else {
         const nuevoRol = await rolPagoService.create(data)
-        
-        // Guardar rubros seleccionados
         for (const sr of selectedRubros) {
           if (sr.id_rubro && parseFloat(sr.cantidad) > 0) {
             await rubrosxrolService.create({
@@ -323,10 +321,10 @@ export default function RolesPagoPage() {
             })
           }
         }
+        setRoles(prev => [nuevoRol, ...prev])
         toast.success("Rol de pago generado con éxito")
       }
       handleCloseModal()
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al guardar"))
@@ -339,8 +337,8 @@ export default function RolesPagoPage() {
     
     try {
       await rolPagoService.update(rol.id_rol, { ...rol, rol_estado: 'PAG' })
+      setRoles(prev => prev.map(r => r.id_rol === rol.id_rol ? { ...r, rol_estado: 'PAG' } : r))
       toast.success("Rol aprobado (Pagado)")
-      fetchData()
     } catch (err: any) {
       toast.error("Error al aprobar")
     }
@@ -354,8 +352,8 @@ export default function RolesPagoPage() {
       // Usamos update en lugar de delete para evadir un error de backend en producción (Render) 
       // donde DELETE intentaba setear 'Anulado' excediendo el límite de 3 caracteres.
       await rolPagoService.update(rol.id_rol, { ...rol, rol_estado: 'ANU' })
+      setRoles(prev => prev.map(r => r.id_rol === rol.id_rol ? { ...r, rol_estado: 'ANU' } : r))
       toast.success("Rol de pago anulado")
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al anular"))
@@ -421,7 +419,7 @@ export default function RolesPagoPage() {
                 ) : (
                   currentRoles.map((rol) => (
                     <TableRow key={rol.id_rol}>
-                      <TableCell className="font-medium text-blue-600">{getEmpleadoName(rol.id_empleado)}</TableCell>
+                      <TableCell className="font-medium text-blue-600">{getEmpleadoName(rol.id_empleado, rol)}</TableCell>
                       <TableCell className="text-center">{rol.rol_dias_trabajados}</TableCell>
                       <TableCell className="text-right text-emerald-600">+${Number(rol.rol_bontotal).toFixed(2)}</TableCell>
                       <TableCell className="text-right text-sky-600">+${Number(rol.rol_comtotal).toFixed(2)}</TableCell>
@@ -439,7 +437,7 @@ export default function RolesPagoPage() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
-                        {(rol.rol_estado === 'GEN' || rol.rol_estado === 'Generado' || rol.rol_estado === 'PEN' || rol.rol_estado === 'Pendiente') && (
+                        {(canApprove && (rol.rol_estado === 'GEN' || rol.rol_estado === 'Generado' || rol.rol_estado === 'PEN' || rol.rol_estado === 'Pendiente')) && (
                           <Button variant="ghost" size="icon" title="Aprobar (Marcar Pagado)" onClick={() => handleApprove(rol)}>
                             <CheckCircle size={18} className="text-emerald-600" />
                           </Button>
@@ -447,7 +445,7 @@ export default function RolesPagoPage() {
                         <Button variant="ghost" size="icon" title="Editar" onClick={() => handleOpenModal(rol)}>
                           <Edit2 size={16} className="text-blue-500" />
                         </Button>
-                        {(rol.rol_estado !== 'ANU' && rol.rol_estado !== 'Anulado') && (
+                        {(canApprove && rol.rol_estado !== 'ANU' && rol.rol_estado !== 'Anulado') && (
                           <Button variant="ghost" size="icon" title="Anular" onClick={() => handleDelete(rol)}>
                             <Trash2 size={16} className="text-red-500" />
                           </Button>
@@ -466,8 +464,16 @@ export default function RolesPagoPage() {
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingRol ? "Editar Rol de Pago" : "Generar Nuevo Rol de Pago"}</DialogTitle>
-          </DialogHeader>
+          <DialogTitle>{editingRol ? "Editar Rol de Pago" : "Generar Nuevo Rol de Pago"}</DialogTitle>
+          <p className="text-sm text-muted-foreground mt-1">
+            Periodo: <span className="font-semibold text-indigo-600">
+              {editingRol 
+                ? `${editingRol.id_rolpago2}` 
+                : `Junio 2026 (${PERIODO_ACTUAL_ID})`
+              }
+            </span> &nbsp;|&nbsp; Nómina obligatoria del mes en curso
+          </p>
+        </DialogHeader>
           <div className="grid gap-4 py-4">
             
             <div className="grid grid-cols-2 gap-4">

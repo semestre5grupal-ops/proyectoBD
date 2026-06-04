@@ -11,8 +11,11 @@ import { Label } from "@/components/ui/label"
 import { CalendarDays, ChevronDown, ChevronRight } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { toast } from "sonner"
+import { usePermissions } from "@/hooks/usePermissions"
 
 export default function PeriodosPage() {
+  const { canManagePeriods } = usePermissions()
   const [periodos, setPeriodos] = useState<Periodo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -100,11 +103,11 @@ export default function PeriodosPage() {
     if (!confirm(`¿Seguro que deseas cerrar el período "${per.per_descripcion}"? Esta acción no se puede deshacer fácilmente.`)) return
 
     try {
-      await periodoService.update(per.id_rolpago2, {
-        ...per,
-        per_estado: "CER"
-      })
-      fetchData()
+      await periodoService.update(per.id_rolpago2, { ...per, per_estado: "CER" })
+      setPeriodos(prev => prev.map(p =>
+        p.id_rolpago2 === per.id_rolpago2 ? { ...p, per_estado: 'CER' } : p
+      ))
+      toast.success(`Periodo "${per.per_descripcion}" cerrado`)
     } catch (err: any) {
       console.error(err)
       alert("Ocurrió un error al cerrar el período: " + (err.message || ""))
@@ -129,11 +132,13 @@ export default function PeriodosPage() {
         <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border">
           <div className="flex items-center gap-2">
             <CalendarDays className="text-primary" size={20} />
-            <h2 className="text-lg font-semibold">Años de Nómina</h2>
+            <h2 className="text-lg font-semibold">Periodos</h2>
           </div>
-          <Button onClick={() => setIsYearModalOpen(true)} className="gap-2">
-            Generar Nuevo Año
-          </Button>
+          {canManagePeriods && (
+            <Button onClick={() => setIsYearModalOpen(true)} className="gap-2">
+              Generar Periodos del Año
+            </Button>
+          )}
         </div>
 
         {loading ? (
@@ -186,7 +191,7 @@ export default function PeriodosPage() {
                                 </span>
                               </TableCell>
                               <TableCell className="text-right">
-                                {(per.per_estado !== 'CER' && per.per_estado !== 'CERRADO') && (
+                                {(canManagePeriods && per.per_estado !== 'CER' && per.per_estado !== 'CERRADO') && (
                                   <Button variant="outline" size="sm" className="h-8 px-2 text-orange-600 border-orange-200 hover:bg-orange-50 hover:text-orange-700" onClick={() => handleCerrarPeriodo(per)}>
                                     Cerrar Período
                                   </Button>

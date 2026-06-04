@@ -154,13 +154,14 @@ export default function DependientesPage() {
 
       if (editingDep && editingDep.id_dependiente) {
         await dependienteService.update(editingDep.id_dependiente, data)
+        setDependientes(prev => prev.map(d => d.id_dependiente === editingDep.id_dependiente ? { ...d, ...data } : d))
         toast.success("Dependiente actualizado exitosamente")
       } else {
-        await dependienteService.create(data)
+        const created = await dependienteService.create(data)
+        setDependientes(prev => [created, ...prev])
         toast.success("Dependiente creado exitosamente")
       }
       handleCloseModal()
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al guardar"))
@@ -173,8 +174,8 @@ export default function DependientesPage() {
 
     try {
       await dependienteService.delete(dep.id_dependiente)
+      setDependientes(prev => prev.filter(d => d.id_dependiente !== dep.id_dependiente))
       toast.success("Dependiente eliminado")
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al eliminar"))

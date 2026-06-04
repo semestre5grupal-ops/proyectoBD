@@ -34,6 +34,36 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
     if (!token && !isPublicRoute) {
       navigate('/auth/sign-in', { replace: true })
+      return
+    }
+
+    if (token && !isPublicRoute) {
+      // Obtener el rol del user_info o usar una lógica simple
+      let role = 'operativotth';
+      try {
+        const ui = JSON.parse(localStorage.getItem('user_info') || '{}');
+        role = ui.rol_nombre || 'operativotth';
+      } catch {}
+
+      const p = location.pathname;
+      const isOperativo = role === 'operativotth';
+      const isAuxiliar = role === 'auxiliartth';
+
+      // Restricciones para Operativo (sólo ver asistencias y dashboard)
+      if (isOperativo && p.startsWith('/tthh/') && !p.includes('/asistencias')) {
+        navigate('/dashboard', { replace: true });
+        return;
+      }
+      if (isOperativo && p.startsWith('/users')) {
+        navigate('/dashboard', { replace: true });
+        return;
+      }
+
+      // Restricciones para Auxiliar (no usuarios)
+      if (isAuxiliar && p.startsWith('/users')) {
+        navigate('/dashboard', { replace: true });
+        return;
+      }
     }
   }, [navigate, location])
 

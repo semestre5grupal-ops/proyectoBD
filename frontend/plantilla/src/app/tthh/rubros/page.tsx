@@ -109,13 +109,14 @@ export default function RubrosPage() {
 
       if (editingRubro) {
         await rubroService.update(editingRubro.id_rubros, dataToSave as Rubro)
+        setRubros(prev => prev.map(r => r.id_rubros === editingRubro.id_rubros ? { ...r, ...dataToSave } : r))
         toast.success("Rubro actualizado exitosamente")
       } else {
-        await rubroService.create(dataToSave as Rubro)
+        const created = await rubroService.create(dataToSave as Rubro)
+        setRubros(prev => [created, ...prev])
         toast.success("Rubro creado exitosamente")
       }
       handleCloseModal()
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al guardar"))
@@ -127,12 +128,9 @@ export default function RubrosPage() {
     if (!confirm(`¿Seguro que deseas inactivar el rubro "${rub.rub_descripcion}"?`)) return
 
     try {
-      await rubroService.update(rub.id_rubros, {
-        ...rub,
-        rub_estado: "INC"
-      })
+      await rubroService.update(rub.id_rubros, { ...rub, rub_estado: "INC" })
+      setRubros(prev => prev.filter(r => r.id_rubros !== rub.id_rubros))
       toast.success("Rubro inactivado")
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al inactivar"))

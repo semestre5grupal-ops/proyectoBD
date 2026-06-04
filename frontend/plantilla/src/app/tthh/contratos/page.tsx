@@ -184,13 +184,14 @@ export default function ContratosPage() {
 
       if (editingCon && editingCon.id_contrato) {
         await contratoService.update(editingCon.id_contrato, data)
+        setContratos(prev => prev.map(c => c.id_contrato === editingCon.id_contrato ? { ...c, ...data } : c))
         toast.success("Contrato actualizado exitosamente")
       } else {
-        await contratoService.create(data)
+        const created = await contratoService.create(data)
+        setContratos(prev => [created, ...prev])
         toast.success("Contrato creado exitosamente")
       }
       handleCloseModal()
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al guardar"))
@@ -203,8 +204,8 @@ export default function ContratosPage() {
 
     try {
       await contratoService.delete(con.id_contrato)
+      setContratos(prev => prev.filter(c => c.id_contrato !== con.id_contrato))
       toast.success("Contrato eliminado")
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al eliminar"))
