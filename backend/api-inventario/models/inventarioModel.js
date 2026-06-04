@@ -324,6 +324,27 @@ const InventarioModel = {
         }
 
         return { idCabecera: idCabeceraGenerada, cabecera };
+    },
+
+    /**
+     * Obtiene el listado de recepciones registradas en la base de datos.
+     * Puede recibir filtros opcionales.
+     */
+    obtenerRecepciones: async () => {
+        const { data, error } = await supabase
+            .from('recepciones')
+            .select(`
+                *,
+                proxrec (*)
+            `)
+            .order('rec_fechahora', { ascending: false });
+
+        if (error) {
+            console.error('🔥 ERROR SUPABASE [obtenerRecepciones]:', error);
+            throw new Error(error.message);
+        }
+
+        return data;
     }
 };
 

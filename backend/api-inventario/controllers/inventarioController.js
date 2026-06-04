@@ -498,4 +498,26 @@ exports.registrarEntrega = async (req, res) => {
             error: error.message ?? 'Error interno al registrar la entrega.',
         });
     }
-};
+};
+
+/**
+ * GET /api/inventario/recepciones
+ * Obtiene el historial completo de recepciones (con o sin detalle).
+ */
+exports.consultarRecepciones = async (req, res) => {
+    try {
+        const recepciones = await InventarioModel.obtenerRecepciones();
+        
+        return res.status(200).json({
+            success: true,
+            data: recepciones
+        });
+    } catch (error) {
+        console.error('🔥 ERROR EN CONTROLADOR [consultarRecepciones]:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message ?? 'Error interno al obtener recepciones.'
+        });
+    }
+};
+
