@@ -345,6 +345,20 @@ const InventarioModel = {
         }
 
         return data;
+    },
+
+    registrarLogAuditoria: async (usuario, accion, tabla, registroId, detalles = {}) => {
+        try {
+            await supabase.from('logs_auditoria').insert([{
+                usuario_responsable: usuario || 'Sistema',
+                accion: accion,
+                tabla_afectada: tabla,
+                registro_id: String(registroId),
+                detalles: detalles
+            }]);
+        } catch (error) {
+            console.error("Error silencioso en Log:", error.message); // No rompe el flujo
+        }
     }
 };
 

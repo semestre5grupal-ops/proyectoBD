@@ -268,6 +268,8 @@ exports.aprobarRecepcion = async (req, res) => {
             periodo
         );
 
+        InventarioModel.registrarLogAuditoria(req.usuario?.usu_nombre, 'APROBAR_FISICO', 'recepciones', idCabecera);
+
         return res.status(200).json({
             success: true,
             message: `Recepción (Cabecera: ${idCabecera}) aprobada y stock actualizado con éxito.`
@@ -310,6 +312,8 @@ exports.aprobarEntrega = async (req, res) => {
             usuario,
             periodo
         );
+
+        InventarioModel.registrarLogAuditoria(req.usuario?.usu_nombre, 'APROBAR_FISICO', 'entregas', idCabecera);
 
         return res.status(200).json({
             success: true,
@@ -396,6 +400,8 @@ exports.registrarRecepcion = async (req, res) => {
         }).catch((err) => {
             console.warn(`⚠️  [registrarRecepcion] No se pudo crear la notificación para el Operativo:`, err.message);
         });
+
+        InventarioModel.registrarLogAuditoria(req.usuario?.usu_nombre || req.body?.usuario_responsable, 'CREAR_PENDIENTE', 'recepciones', idCabecera);
 
         return res.status(201).json({
             success: true,
@@ -484,6 +490,8 @@ exports.registrarEntrega = async (req, res) => {
         }).catch((err) => {
             console.warn(`⚠️  [registrarEntrega] No se pudo crear la notificación para el Operativo:`, err.message);
         });
+
+        InventarioModel.registrarLogAuditoria(req.usuario?.usu_nombre || req.body?.usuario_responsable, 'CREAR_PENDIENTE', 'entregas', idCabecera);
 
         return res.status(201).json({
             success: true,
