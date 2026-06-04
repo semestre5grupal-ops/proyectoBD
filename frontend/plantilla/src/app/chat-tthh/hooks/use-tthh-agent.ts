@@ -182,6 +182,8 @@ export function useTTHHAgent(): UseTTHHAgentState & UseTTHHAgentActions {
     // 1. Detección inteligente de cédula ecuatoriana (10 dígitos)
     let contextoEmpleado = '';
     const matchCedula = texto.match(/\b\d{10}\b/);
+    const isSoloCedula = /^\d{10}$/.test(texto.trim());
+    
     if (matchCedula) {
       const cedula = matchCedula[0];
       try {
@@ -216,6 +218,59 @@ export function useTTHHAgent(): UseTTHHAgentState & UseTTHHAgentActions {
           let rolInfo = "No tiene roles de pago registrados.";
           if (lastRol) {
             rolInfo = `Último rol: Neto $${lastRol.rol_neto}, Días trabajados: ${lastRol.rol_dias_trabajados}, Bonos $${lastRol.rol_bontotal}, Descuentos $${lastRol.rol_destotal}.`;
+          }
+
+          // Si es solo cédula, responder directamente con información + despido
+          if (isSoloCedula) {
+            let respuestaDirect = `INFORMACIÓN DEL EMPLEADO\n` +
+              `========================\n` +
+              `Nombre: ${emp.emp_nom1} ${emp.emp_nom2 || ''} ${emp.emp_ap1} ${emp.emp_ap2 || ''}\n` +
+              `Cédula: ${emp.emp_cedula}\n` +
+              `Estado: ${contratoActivo?.con_estado || 'INACTIVO'}\n` +
+              `Sueldo Base: $${sueldoBase}\n` +
+              `Vacaciones: ${vacSaldoTotal} días\n` +
+              `Correo: ${emp.emp_email || 'No especificado'}\n` +
+              `Teléfono: ${emp.emp_telefono || 'No especificado'}\n` +
+              `Asistencias: ${totalAsistencias} marcaciones\n` +
+              `Últimas asistencias: ${ultimasAsist || 'Ninguna'}\n`;
+
+            // Cálculo de despido intempestivo
+            if (contratoActivo && contratoActivo.con_fechainicio && sueldoBase > 0) {
+              const fechaInicio = new Date(contratoActivo.con_fechainicio);
+              const hoy = new Date();
+              
+              let anosServicio = hoy.getFullYear() - fechaInicio.getFullYear();
+              const mesActual = hoy.getMonth();
+              const mesInicio = fechaInicio.getMonth();
+              if (mesActual < mesInicio || (mesActual === mesInicio && hoy.getDate() < fechaInicio.getDate())) {
+                anosServicio--;
+              }
+              if (anosServicio < 0) anosServicio = 0;
+
+              let anosCalculoDespido = anosServicio;
+              if (hoy.getMonth() > fechaInicio.getMonth() || (hoy.getMonth() === fechaInicio.getMonth() && hoy.getDate() > fechaInicio.getDate())) {
+                anosCalculoDespido++;
+              }
+              if (anosCalculoDespido === 0) anosCalculoDespido = 1;
+
+              let mesesIndemnizacion = anosCalculoDespido <= 3 ? 3 : anosCalculoDespido;
+              const indemnizacionDespido = sueldoBase * mesesIndemnizacion;
+              const desahucio = sueldoBase * 0.25 * (anosServicio > 0 ? anosServicio : 1);
+              const pagoVacaciones = (sueldoBase / 30) * vacSaldoTotal;
+              const totalLiquidacion = indemnizacionDespido + desahucio + pagoVacaciones;
+
+              respuestaDirect += `\nDESPIDO INTEMPESTIVO (ART. 188-185)\n` +
+                `===================================\n` +
+                `Años de servicio: ${anosServicio} años y fracción (Desde: ${fechaInicio.toLocaleDateString('es-EC')})\n` +
+                `Indemnización (Art. 188): ${mesesIndemnizacion} meses = $${indemnizacionDespido.toFixed(2)}\n` +
+                `Desahucio (Art. 185): $${desahucio.toFixed(2)}\n` +
+                `Vacaciones no gozadas: $${pagoVacaciones.toFixed(2)}\n` +
+                `TOTAL LIQUIDACIÓN: $${totalLiquidacion.toFixed(2)}`;
+            }
+
+            setMensajes(prev => prev.map(m => m.id === thinkingId ? { ...m, content: respuestaDirect } : m));
+            setAgentThinking(false);
+            return;
           }
 
           contextoEmpleado = `\n\n[INFORMACIÓN DEL EMPLEADO EN LA BASE DE DATOS:\n` +
