@@ -35,6 +35,7 @@ import {
   Brain,
   Loader2,
   Inbox,
+  MapPin,
 } from "lucide-react"
 
 import { BaseLayout } from "@/components/layouts/base-layout"
@@ -326,7 +327,12 @@ export default function ChatAgentePage() {
       title="Centro de Comando IA — Inventario"
       description="Agentic ERP Task Center · Módulo de Inventario · Comercial JW Cóndor"
     >
-      <div className="flex flex-col h-[calc(100vh-120px)] min-h-[600px] px-4 pb-4 lg:px-6 gap-0">
+      <div className="flex flex-col gap-8 px-4 pb-8 lg:px-6">
+        
+        {/* ══════════════════════════════════════════════════════════════════
+            CONTENEDOR DEL CHAT
+        ══════════════════════════════════════════════════════════════════ */}
+        <div className="flex flex-col h-[calc(100vh-120px)] min-h-[600px] gap-0 overflow-y-auto">
 
         {/* ══════════════════════════════════════════════════════════════════
             HEADER DEL AGENTE
@@ -511,10 +517,12 @@ export default function ChatAgentePage() {
           </div>
         )}
 
+
+
         {/* ══════════════════════════════════════════════════════════════════
             ÁREA DE MENSAJES
         ══════════════════════════════════════════════════════════════════ */}
-        <div className="flex-1 min-h-0 flex flex-col border-x border-b rounded-b-lg overflow-hidden bg-background">
+        <div className="flex-1 min-h-[400px] flex flex-col border rounded-lg overflow-hidden bg-background">
 
           {/* ── Mensaje de bienvenida — fijo en la parte superior (no scrollea) */}
           <div className="shrink-0 flex gap-3 px-4 pt-5 pb-3 border-b border-border/40">
@@ -593,13 +601,15 @@ export default function ChatAgentePage() {
         </div>
 
         {/* ── Pie: atribución del modelo ────────────────────────────────────── */}
-        <p className="text-center text-[10px] text-muted-foreground pt-1.5">
+        <p className="text-center text-[10px] text-muted-foreground pt-1.5 pb-2">
           Impulsado por{" "}
           <span className="font-mono">
             {(import.meta.env.VITE_OLLAMA_MODEL as string | undefined) ?? "llama3.2"}
           </span>{" "}
           vía Ollama local · Los datos se procesan en tu equipo
         </p>
+        </div>
+
       </div>
     </BaseLayout>
   )

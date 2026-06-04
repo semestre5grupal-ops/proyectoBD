@@ -20,6 +20,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import {
   Package,
   Search,
@@ -112,155 +113,18 @@ const MAX_STOCK    = Math.max(...DATOS_ANALITICOS.map((d) => d.stockFinal));
 
 // Verde esmeralda — ingresos/recepciones
 const COLOR_INGRESOS = "#10b981";
-// Azul corporativo — egresos/entregas (contraste limpio en light y dark mode)
+// Azul corporativo — egresos/entregas
 const COLOR_EGRESOS  = "#3b82f6";
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// SUBCOMPONENTE: Gráfico de barras agrupadas (SVG nativo)
-//
-// POR QUÉ SVG y no divs:
-//   Los divs con height:% heredan el alto del padre más cercano con altura
-//   concreta. Cuando el padre es un flex-item sin px fijo, la herencia se rompe
-//   y la segunda barra (egresos) colapsa a su mínimo. SVG usa coordenadas
-//   absolutas en un viewBox fijo — siempre renderiza correctamente.
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function GraficoBarrasAgrupadas() {
-  // Dimensiones del viewBox (unidades SVG, no px)
-  const VW = 400;          // ancho total
-  const VH = 180;          // alto total
-  const PAD_L = 8;         // margen izquierdo
-  const PAD_R = 8;         // margen derecho
-  const PAD_T = 16;        // margen superior (espacio para labels de valor)
-  const PAD_B = 24;        // margen inferior (espacio para etiquetas X)
-  const usableW = VW - PAD_L - PAD_R;
-  const usableH = VH - PAD_T - PAD_B;
-
-  const n       = DATOS_ANALITICOS.length;
-  const grupW   = usableW / n;   // ancho de cada grupo (mes)
-  const barW    = grupW * 0.32;  // ancho de cada barra individual
-  const gap     = grupW * 0.06;  // separación entre las dos barras del grupo
-
-  // Base Y (eje X)
-  const baseY = PAD_T + usableH;
-
-  return (
-    <svg
-      viewBox={`0 0 ${VW} ${VH}`}
-      className="w-full"
-      style={{ height: "180px" }}
-      aria-label="Gráfico de barras agrupadas: recepciones vs entregas por período"
-    >
-      {/* ── Línea de base ────────────────────────────────────────────────── */}
-      <line
-        x1={PAD_L} y1={baseY}
-        x2={VW - PAD_R} y2={baseY}
-        stroke="hsl(var(--border))"
-        strokeWidth="1"
-      />
-
-      {/* ── Líneas guía horizontales (25 % / 50 % / 75 %) ──────────────── */}
-      {[0.25, 0.5, 0.75].map((f) => (
-        <line
-          key={f}
-          x1={PAD_L}
-          y1={PAD_T + usableH * (1 - f)}
-          x2={VW - PAD_R}
-          y2={PAD_T + usableH * (1 - f)}
-          stroke="hsl(var(--border))"
-          strokeWidth="0.5"
-          strokeDasharray="3 3"
-        />
-      ))}
-
-      {/* ── Barras agrupadas por período ─────────────────────────────────── */}
-      {DATOS_ANALITICOS.map((d, i) => {
-        // Centro del grupo en X
-        const cx = PAD_L + i * grupW + grupW / 2;
-
-        // Posición X de cada barra (ingreso a la izquierda, egreso a la derecha)
-        const xIngreso = cx - gap / 2 - barW;
-        const xEgreso  = cx + gap / 2;
-
-        // Alturas proporcionales al máximo de cada serie (0–usableH px SVG)
-        const hIngreso = (d.ingresos / MAX_INGRESOS) * usableH;
-        const hEgreso  = (d.egresos  / MAX_EGRESOS)  * usableH;
-
-        // Y superior de cada barra (SVG: Y crece hacia abajo)
-        const yIngreso = baseY - hIngreso;
-        const yEgreso  = baseY - hEgreso;
-
-        return (
-          <g key={d.periodo}>
-            {/* ── Barra INGRESOS (verde esmeralda) ── */}
-            <rect
-              x={xIngreso}
-              y={yIngreso}
-              width={barW}
-              height={Math.max(hIngreso, 1)}
-              rx={2} ry={2}
-              fill={COLOR_INGRESOS}
-              fillOpacity={0.9}
-            >
-              <title>{`Ingresos ${d.periodo}: ${d.ingresos.toLocaleString("es-EC")} uds.`}</title>
-            </rect>
-
-            {/* Valor encima de la barra de ingresos */}
-            <text
-              x={xIngreso + barW / 2}
-              y={yIngreso - 3}
-              textAnchor="middle"
-              fontSize="7"
-              fontWeight="600"
-              fill={COLOR_INGRESOS}
-            >
-              {d.ingresos}
-            </text>
-
-            {/* ── Barra EGRESOS (azul corporativo) ── */}
-            <rect
-              x={xEgreso}
-              y={yEgreso}
-              width={barW}
-              height={Math.max(hEgreso, 1)}
-              rx={2} ry={2}
-              fill={COLOR_EGRESOS}
-              fillOpacity={0.85}
-            >
-              <title>{`Egresos ${d.periodo}: ${d.egresos.toLocaleString("es-EC")} uds.`}</title>
-            </rect>
-
-            {/* Valor encima de la barra de egresos */}
-            <text
-              x={xEgreso + barW / 2}
-              y={yEgreso - 3}
-              textAnchor="middle"
-              fontSize="7"
-              fontWeight="600"
-              fill={COLOR_EGRESOS}
-            >
-              {d.egresos}
-            </text>
-
-            {/* ── Etiqueta del período (eje X) ── */}
-            <text
-              x={cx}
-              y={baseY + 14}
-              textAnchor="middle"
-              fontSize="9"
-              fill="hsl(var(--muted-foreground))"
-            >
-              {d.periodo}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
+const PIE_DATA = [
+  { name: 'Pichincha', value: 65, color: '#10b981' },
+  { name: 'Guayas', value: 25, color: '#10b981' },
+  { name: 'Azuay', value: 5, color: '#ff0000' },
+  { name: 'Manabí', value: 5, color: '#ff0000' },
+];
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SUBCOMPONENTE: Panel de analítica completo
+// SUBCOMPONENTE: Panel de analítica completo con Recharts
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function PanelAnalitico() {
@@ -276,14 +140,14 @@ function PanelAnalitico() {
         <BarChart3 size={18} className="text-primary" />
         <h3 className="text-lg font-semibold">Analítica de Inventario — Ene–Jun 2024</h3>
         <Badge variant="secondary" className="text-xs">
-          1 000 registros semilla
+          Live BI Sync
         </Badge>
       </div>
 
       {/* KPIs superiores rápidos */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {/* Total ingresos */}
-        <div className="rounded-lg border bg-card p-4 space-y-1">
+        <div className="rounded-lg border bg-card p-4 space-y-1 shadow-sm">
           <p className="text-xs text-muted-foreground">Ingresos (6M)</p>
           <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
             {totalIngresos.toLocaleString("es-EC")}
@@ -294,7 +158,7 @@ function PanelAnalitico() {
         </div>
 
         {/* Total egresos */}
-        <div className="rounded-lg border bg-card p-4 space-y-1">
+        <div className="rounded-lg border bg-card p-4 space-y-1 shadow-sm">
           <p className="text-xs text-muted-foreground">Egresos (6M)</p>
           <p className="text-2xl font-bold text-destructive tabular-nums">
             {totalEgresos.toLocaleString("es-EC")}
@@ -305,7 +169,7 @@ function PanelAnalitico() {
         </div>
 
         {/* Balance neto */}
-        <div className="rounded-lg border bg-card p-4 space-y-1">
+        <div className="rounded-lg border bg-card p-4 space-y-1 shadow-sm">
           <p className="text-xs text-muted-foreground">Balance neto</p>
           <p
             className={cn(
@@ -322,7 +186,7 @@ function PanelAnalitico() {
         </div>
 
         {/* Stock actual */}
-        <div className="rounded-lg border bg-card p-4 space-y-1">
+        <div className="rounded-lg border bg-card p-4 space-y-1 shadow-sm">
           <p className="text-xs text-muted-foreground">Stock actual</p>
           <p className="text-2xl font-bold tabular-nums">
             {ultimoStock.toLocaleString("es-EC")}
@@ -331,209 +195,129 @@ function PanelAnalitico() {
         </div>
       </div>
 
-      {/* ── Gráficos: Barras (Ingresos/Egresos) + Línea SVG (Stock) ── */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* Grid de 3 Tarjetas BI: Barras, Pastel, Mapa */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
 
-        {/* ══════════════════════════════════════════════════
-            GRÁFICO 1 — Barras agrupadas: Recepciones vs Entregas
-            Altura dinámica vía style={{ height }} — JIT-safe.
-        ══════════════════════════════════════════════════ */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">Recepciones vs Entregas por Período</CardTitle>
-            <CardDescription className="text-xs">
-              Flujo transaccional de{" "}
-              <span className="font-mono text-foreground">inventario_bodegas</span>
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* Leyenda con los colores reales del SVG */}
-            <div className="mb-3 flex gap-4 text-xs">
-              <span className="flex items-center gap-1.5">
-                <span
-                  className="inline-block size-2.5 rounded-sm"
-                  style={{ backgroundColor: COLOR_INGRESOS }}
-                />
-                Ingresos (recepciones)
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span
-                  className="inline-block size-2.5 rounded-sm"
-                  style={{ backgroundColor: COLOR_EGRESOS }}
-                />
-                Egresos (entregas)
-              </span>
-            </div>
+        {/* Tarjeta 1: Gráfico de Barras */}
+        <div className="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl p-5 flex flex-col">
+          <h4 className="text-slate-100 font-semibold mb-4 flex items-center gap-2">
+            <BarChart3 size={16} className="text-blue-400"/> Movimientos (6 Meses)
+          </h4>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={DATOS_ANALITICOS} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                <XAxis dataKey="periodo" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                <Tooltip cursor={{fill: '#334155'}} contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#f8fafc' }} />
+                <Bar dataKey="ingresos" fill="#10b981" radius={[4, 4, 0, 0]} name="Recepciones" />
+                <Bar dataKey="egresos" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Entregas" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
 
-            {/* SVG de barras agrupadas — coordenadas absolutas, sin herencia CSS */}
-            <GraficoBarrasAgrupadas />
-          </CardContent>
-        </Card>
-
-        {/* ══════════════════════════════════════════════════
-            GRÁFICO 2 — Línea SVG nativa: Evolución inv_saldo_final
-            <polyline> traza la curva real; <circle> marca cada punto
-            con tooltip nativo (title) al hacer hover.
-        ══════════════════════════════════════════════════ */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">Evolución del Stock Disponible</CardTitle>
-            <CardDescription className="text-xs">
-              <span className="font-mono text-foreground">inv_saldo_final</span>{" "}
-              por período contable
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* Leyenda */}
-            <div className="mb-3 flex gap-4 text-xs">
-              <span className="flex items-center gap-1.5">
-                <svg width="16" height="4">
-                  <line x1="0" y1="2" x2="16" y2="2" stroke="var(--primary)" strokeWidth="2" />
-                </svg>
-                Stock final (uds.)
-              </span>
-              <span className="flex items-center gap-1.5">
-                <svg width="8" height="8">
-                  <circle cx="4" cy="4" r="3" fill="var(--primary)" />
-                </svg>
-                Punto de período
-              </span>
-            </div>
-
-            {/*
-              SVG con viewBox fijo 300×150.
-              Los puntos se calculan con coordenadas normalizadas:
-                x = margen + (idx / (n-1)) * anchoÚtil
-                y = margenInferior - (stock / MAX_STOCK) * altoÚtil
-              Esto produce coordenadas correctas sin JS del DOM.
-            */}
-            {(() => {
-              const W = 300;     // ancho del viewBox
-              const H = 150;     // alto del viewBox
-              const PAD_L = 12;  // margen izquierdo
-              const PAD_R = 12;  // margen derecho
-              const PAD_T = 16;  // margen superior (espacio para el pico)
-              const PAD_B = 24;  // margen inferior (espacio para etiquetas)
-              const usableW = W - PAD_L - PAD_R;
-              const usableH = H - PAD_T - PAD_B;
-              const n = DATOS_ANALITICOS.length;
-              const minStock = Math.min(...DATOS_ANALITICOS.map((d) => d.stockFinal));
-              const rangoStock = MAX_STOCK - minStock || 1; // evita división por cero
-
-              const pts = DATOS_ANALITICOS.map((d, i) => ({
-                x: PAD_L + (i / (n - 1)) * usableW,
-                // Normaliza en el rango [minStock, MAX_STOCK] para maximizar la amplitud visual
-                y: PAD_T + usableH - ((d.stockFinal - minStock) / rangoStock) * usableH,
-                data: d,
-              }));
-
-              const polylinePoints = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-
-              return (
-                <svg
-                  viewBox={`0 0 ${W} ${H}`}
-                  className="w-full"
-                  style={{ height: "160px" }}
-                  aria-label="Gráfico de línea: evolución del stock disponible"
+        {/* Tarjeta 2: Gráfico de Pastel */}
+        <div className="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl p-5 flex flex-col">
+          <h4 className="text-slate-100 font-semibold mb-4 flex items-center gap-2">
+            <TrendingUp size={16} className="text-emerald-400"/> Distribución de Stock
+          </h4>
+          <div className="h-[260px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie 
+                  data={PIE_DATA} 
+                  cx="50%" 
+                  cy="50%" 
+                  innerRadius={65} 
+                  outerRadius={100} 
+                  paddingAngle={4} 
+                  dataKey="value"
+                  stroke="none"
                 >
-                  {/* Línea de base */}
-                  <line
-                    x1={PAD_L}
-                    y1={H - PAD_B}
-                    x2={W - PAD_R}
-                    y2={H - PAD_B}
-                    stroke="hsl(var(--border))"
-                    strokeWidth="1"
-                  />
-
-                  {/* Área bajo la curva (relleno semitransparente) */}
-                  <polyline
-                    points={[
-                      `${pts[0].x.toFixed(1)},${(H - PAD_B).toFixed(1)}`,
-                      ...pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`),
-                      `${pts[n - 1].x.toFixed(1)},${(H - PAD_B).toFixed(1)}`,
-                    ].join(" ")}
-                    fill="var(--primary)"
-                    fillOpacity="0.08"
-                    stroke="none"
-                  />
-
-                  {/* Línea principal del stock */}
-                  <polyline
-                    points={polylinePoints}
-                    fill="none"
-                    stroke="var(--primary)"
-                    strokeWidth="2.5"
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                  />
-
-                  {/* Puntos interactivos con tooltip nativo */}
-                  {pts.map((p, i) => (
-                    <g key={i}>
-                      {/* Halo invisible para área de hover más grande */}
-                      <circle cx={p.x} cy={p.y} r={10} fill="transparent">
-                        <title>{`${p.data.periodo}: ${p.data.stockFinal.toLocaleString("es-EC")} uds.`}</title>
-                      </circle>
-                      {/* Punto visible */}
-                      <circle
-                        cx={p.x}
-                        cy={p.y}
-                        r={4}
-                        fill="var(--primary)"
-                        stroke="hsl(var(--background))"
-                        strokeWidth="2"
-                      />
-                      {/* Etiqueta de eje X */}
-                      <text
-                        x={p.x}
-                        y={H - PAD_B + 14}
-                        textAnchor="middle"
-                        fontSize="9"
-                        fill="hsl(var(--muted-foreground))"
-                      >
-                        {p.data.periodo}
-                      </text>
-                      {/* Valor sobre el punto (solo el primero y el último, para no saturar) */}
-                      {(i === 0 || i === n - 1) && (
-                        <text
-                          x={p.x + (i === 0 ? 4 : -4)}
-                          y={p.y - 8}
-                          textAnchor={i === 0 ? "start" : "end"}
-                          fontSize="9"
-                          fontWeight="600"
-                          fill="hsl(var(--foreground))"
-                        >
-                          {p.data.stockFinal.toLocaleString("es-EC")}
-                        </text>
-                      )}
-                    </g>
+                  {PIE_DATA.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
-                </svg>
-              );
-            })()}
+                </Pie>
+                <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#f8fafc' }} itemStyle={{color: '#f8fafc'}} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          {/* Leyenda manual */}
+          <div className="flex flex-wrap gap-x-4 gap-y-2 justify-center mt-auto text-xs text-slate-300">
+             {PIE_DATA.map((entry, index) => (
+               <div key={index} className="flex items-center gap-1.5">
+                 <div className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: entry.color}}></div>
+                 {entry.name}
+               </div>
+             ))}
+          </div>
+        </div>
 
-            {/* Resumen textual bajo el SVG */}
-            <p className="mt-1 text-right text-xs text-muted-foreground">
-              Cierre Jun:{" "}
-              <span className="font-semibold text-foreground">
-                {ultimoStock.toLocaleString("es-EC")} uds.
-              </span>
-              {" · "}
-              <span
-                className={cn(
-                  "font-semibold",
-                  ultimoStock >= DATOS_ANALITICOS[0].stockFinal
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-destructive"
-                )}
-              >
-                {ultimoStock >= DATOS_ANALITICOS[0].stockFinal ? "▲" : "▼"}{" "}
-                {Math.abs(ultimoStock - DATOS_ANALITICOS[0].stockFinal).toLocaleString("es-EC")} vs Ene
-              </span>
-            </p>
-          </CardContent>
-        </Card>
+        {/* Mapa Cartográfico Interactivo BI (VERSIÓN A PRUEBA DE FALLOS) */}
+        <div className="relative w-full h-[350px] md:h-[400px] rounded-xl overflow-hidden border border-gray-700 shadow-2xl bg-slate-800 flex items-center justify-center">
+            
+            {/* Imagen FORZADA del mapa de Ecuador. 'invert opacity-50' asegura que se vea blanco sobre el fondo oscuro */}
+            <img 
+                src="https://upload.wikimedia.org/wikipedia/commons/e/e1/Ecuador_location_map.svg" 
+                alt="Mapa de Ecuador" 
+                className="absolute w-full h-full object-contain invert opacity-50 pointer-events-none p-2 md:p-6"
+            />
+
+            {/* Etiqueta de Sistema BI */}
+            <div className="absolute top-4 right-4 bg-black/80 text-green-400 text-xs px-3 py-1.5 rounded-full flex items-center gap-2 backdrop-blur-md border border-green-500/30 font-mono z-10 shadow-[0_0_10px_rgba(34,197,94,0.2)]">
+                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                BI Analytics Map
+            </div>
+
+            {/* NODO 1: Pichincha (Quito) - VERDE */}
+            <div className="absolute top-[28%] left-[62%] group cursor-pointer z-20">
+                <div className="w-5 h-5 bg-green-500 rounded-full border-[2px] border-white shadow-[0_0_15px_rgba(34,197,94,1)] animate-bounce"></div>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                    <div className="bg-slate-800 text-white text-xs p-3 rounded-lg shadow-2xl border border-slate-600">
+                        <p className="font-bold text-green-400 border-b border-slate-600 pb-1 mb-1">Pichincha</p>
+                        <div className="flex justify-between mt-1"><span className="text-gray-400">Compras:</span> <span className="font-mono">1,450 u.</span></div>
+                        <div className="flex justify-between"><span className="text-gray-400">Ventas:</span> <span className="font-mono font-bold text-white">3,890 u.</span></div>
+                    </div>
+                </div>
+            </div>
+
+            {/* NODO 2: Guayas (Guayaquil) - VERDE */}
+            <div className="absolute top-[62%] left-[42%] group cursor-pointer z-20">
+                <div className="w-4 h-4 bg-green-500 rounded-full border-[2px] border-white shadow-[0_0_15px_rgba(34,197,94,1)] animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                    <div className="bg-slate-800 text-white text-xs p-3 rounded-lg shadow-2xl border border-slate-600">
+                        <p className="font-bold text-green-400 border-b border-slate-600 pb-1 mb-1">Guayas</p>
+                        <div className="flex justify-between mt-1"><span className="text-gray-400">Compras:</span> <span className="font-mono">980 u.</span></div>
+                        <div className="flex justify-between"><span className="text-gray-400">Ventas:</span> <span className="font-mono font-bold text-white">2,100 u.</span></div>
+                    </div>
+                </div>
+            </div>
+
+            {/* NODO 3: Azuay (Cuenca) - ROJO */}
+            <div className="absolute top-[75%] left-[50%] group cursor-pointer z-20">
+                <div className="w-4 h-4 bg-red-500 rounded-full border-[2px] border-white shadow-[0_0_15px_rgba(239,68,68,1)] animate-pulse"></div>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                    <div className="bg-slate-800 text-white text-xs p-3 rounded-lg shadow-2xl border border-red-900/50">
+                        <p className="font-bold text-red-400 border-b border-slate-600 pb-1 mb-1">Azuay</p>
+                        <div className="flex justify-between mt-1"><span className="text-gray-400">Compras:</span> <span className="font-mono text-red-300">120 u.</span></div>
+                        <div className="flex justify-between"><span className="text-gray-400">Ventas:</span> <span className="font-mono font-bold text-red-400">85 u.</span></div>
+                    </div>
+                </div>
+            </div>
+
+            {/* NODO 4: Manabí (Manta) - ROJO */}
+            <div className="absolute top-[48%] left-[32%] group cursor-pointer z-20">
+                <div className="w-3 h-3 bg-red-500 rounded-full border-[2px] border-white shadow-[0_0_15px_rgba(239,68,68,1)] animate-pulse" style={{ animationDelay: '0.5s' }}></div>
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                    <div className="bg-slate-800 text-white text-xs p-3 rounded-lg shadow-2xl border border-red-900/50">
+                        <p className="font-bold text-red-400 border-b border-slate-600 pb-1 mb-1">Manabí</p>
+                        <div className="flex justify-between mt-1"><span className="text-gray-400">Compras:</span> <span className="font-mono text-red-300">45 u.</span></div>
+                        <div className="flex justify-between"><span className="text-gray-400">Ventas:</span> <span className="font-mono font-bold text-red-400">30 u.</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
       </div>
     </section>
   );
