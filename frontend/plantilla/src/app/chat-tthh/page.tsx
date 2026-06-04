@@ -32,7 +32,7 @@ export default function ChatTTHHPage() {
   // Bienvenida inicial
   useEffect(() => {
     if (mensajes.length === 0) {
-      inyectarMensajeAgente(`¡Hola ${nombreUsuario}! Soy el Agente IA de Talento Humano.\n\nTu rol actual es: **${rolActivo.replace(/_/g, ' ')}**.\n\nPuedes pedirme que contrate empleados, cree departamentos o consulte información.`);
+      inyectarMensajeAgente(`¡Hola ${nombreUsuario}! Soy el Asesor Legal de Talento Humano.\n\nTu rol actual es: **${rolActivo.replace(/_/g, ' ')}**.\n\nPuedes consultarme sobre el Código del Trabajo de Ecuador, liquidaciones, despidos, vacaciones y la normativa del IESS.`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -54,8 +54,8 @@ export default function ChatTTHHPage() {
 
   return (
     <BaseLayout 
-      title="Asistente IA - Talento Humano" 
-      description="Agentic Task Center para gestionar RRHH con lenguaje natural"
+      title="Asistente IA - Asesoría Legal Laboral (Ecuador)" 
+      description="Consultas sobre el Código del Trabajo, IESS y obligaciones patronales en Ecuador"
     >
       <div className="flex flex-col h-[calc(100vh-140px)] max-w-4xl mx-auto w-full bg-background border shadow-sm rounded-xl overflow-hidden mt-4">
         
@@ -63,10 +63,10 @@ export default function ChatTTHHPage() {
         <div className="flex items-center justify-between px-6 py-3 border-b bg-card">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="text-xl">🤖</span>
+              <span className="text-xl">⚖️</span>
             </div>
             <div>
-              <h2 className="font-semibold leading-none mb-1">Agente TTHH</h2>
+              <h2 className="font-semibold leading-none mb-1">Asesor Legal TTHH</h2>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="flex h-2 w-2 rounded-full bg-green-500"></span>
                 En línea • {rolActivo.replace(/_/g, ' ')}
@@ -132,7 +132,7 @@ export default function ChatTTHHPage() {
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={escuchando ? "Escuchando... di 'confirmar' o 'cancelar'" : "Escribe tu orden para RRHH..."}
+                placeholder={escuchando ? "Escuchando..." : "Realiza una consulta legal sobre legislación laboral ecuatoriana..."}
                 className="pl-12 pr-12 py-6 rounded-2xl bg-muted/50 border-transparent focus-visible:ring-1 focus-visible:ring-primary shadow-inner"
                 disabled={agentThinking}
                 autoFocus
