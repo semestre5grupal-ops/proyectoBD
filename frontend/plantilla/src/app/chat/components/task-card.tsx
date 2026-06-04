@@ -201,9 +201,9 @@ export function TaskCard({ tarea, onConfirmar, onRechazar }: TaskCardProps) {
   const handleConfirmar = async () => {
     if (procesando || esFinalizado) return
     
-    if (cantidadReal < 0 || isNaN(cantidadReal)) {
-      alert("La cantidad real no puede ser negativa ni estar vacía.")
-      return
+    if (isNaN(cantidadReal) || (tarea.accion !== 'AUTORIZAR_AJUSTE' && cantidadReal < 0)) {
+      alert("La cantidad no puede ser negativa para este documento.");
+      return;
     }
 
     // FIX NUCLEAR: Extraer id fijo de la DB original
@@ -333,7 +333,7 @@ export function TaskCard({ tarea, onConfirmar, onRechazar }: TaskCardProps) {
             </div>
             <input
               type="number"
-              min="0"
+              min={tarea.accion === 'AUTORIZAR_AJUSTE' ? undefined : "0"}
               value={cantidadReal}
               onChange={(e) => setCantidadReal(e.target.value === '' ? 0 : Number(e.target.value))}
               className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
