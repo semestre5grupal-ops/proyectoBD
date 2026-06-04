@@ -178,7 +178,9 @@ interface TaskCardProps {
 
 export function TaskCard({ tarea, onConfirmar, onRechazar }: TaskCardProps) {
   const [procesando, setProcesando] = useState(false)
-  const [cantidadReal, setCantidadReal] = useState<number>(Number(tarea.payload?.cantidad || 0))
+  const dataPayload = (tarea.payload_json || tarea.payload || {}) as Record<string, any>;
+  const cantidadSugerida = dataPayload.cantidadEsperada || dataPayload.cantidad || dataPayload.pxo_cantidad || dataPayload.pxd_cantidad || 0;
+  const [cantidadReal, setCantidadReal] = useState<number>(Number(cantidadSugerida))
 
   const accionNombre = tarea?.accion || "DESCONOCIDO";
   const cfg = ACCION_CONFIG[accionNombre as AccionInventario] || {
@@ -314,11 +316,11 @@ export function TaskCard({ tarea, onConfirmar, onRechazar }: TaskCardProps) {
               <label className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                 Unidades Reales:
               </label>
-              {tarea.payload?.cantidadEsperada != null && (
+              {cantidadSugerida ? (
                 <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                  Cantidad sugerida por el documento: {tarea.payload.cantidadEsperada} unidades
+                  Cantidad sugerida por el documento: {cantidadSugerida} unidades
                 </span>
-              )}
+              ) : null}
             </div>
             <input
               type="number"

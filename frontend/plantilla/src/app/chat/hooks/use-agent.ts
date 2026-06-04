@@ -220,7 +220,7 @@ function parseAgentResponse(
  */
 function crearMensajeTarea(tarea: TareaInventario): MensajeERP {
   return {
-    id: `msg-${tarea.id}`,
+    id: `msg-${tarea.id}-${Date.now()}`,
     content: tarea.mensaje_usuario,
     timestamp: tarea.timestamp,
     senderId: 'agent',
@@ -364,15 +364,17 @@ export function useAgent(): UseAgentState & UseAgentActions {
         case 'CONFIRMAR_RECEPCION': {
           console.log("PAYLOAD A EJECUTAR (CONFIRMAR_RECEPCION):", payload);
           const p = payload as Record<string, any>;
-          const idCabecera = p.idCabecera || p.id_cabecera;
+          const dataPayload = p.payload_json || p || {};
+          const idCabecera = dataPayload.idCabecera || dataPayload.id_cabecera || dataPayload.id_compra || dataPayload.id_documento;
 
           if (!idCabecera) {
             throw new Error("No se encontró el idCabecera en el payload para confirmar la recepción.");
           }
 
-          const idVariante = Number(p.idVariante || p.id_variante || 1);
-          const idBodega = Number(p.idBodega || p.id_bodega || 1);
-          const cantidadReal = Math.abs(Number(p.cantidad || p.cant || 0));
+          const idVariante = Number(dataPayload.idVariante || dataPayload.id_variante || 1);
+          const idBodega = Number(dataPayload.idBodega || dataPayload.id_bodega || 1);
+          const cantidadSugerida = dataPayload.cantidadEsperada || dataPayload.cantidad || dataPayload.pxo_cantidad || dataPayload.pxd_cantidad;
+          const cantidadReal = Math.abs(Number(p.cantidad || p.cant || cantidadSugerida || 0));
 
           console.log("🚀 Disparando RPC de recepción para cabecera:", idCabecera);
 
@@ -413,15 +415,17 @@ export function useAgent(): UseAgentState & UseAgentActions {
         case 'CONFIRMAR_ENTREGA': {
           console.log("PAYLOAD A EJECUTAR (CONFIRMAR_ENTREGA):", payload);
           const p = payload as Record<string, any>;
-          const idCabecera = p.idCabecera || p.id_cabecera;
+          const dataPayload = p.payload_json || p || {};
+          const idCabecera = dataPayload.idCabecera || dataPayload.id_cabecera || dataPayload.id_compra || dataPayload.id_documento;
 
           if (!idCabecera) {
             throw new Error("No se encontró el idCabecera en el payload para confirmar la entrega.");
           }
 
-          const idVariante = Number(p.idVariante || p.id_variante || 1);
-          const idBodega = Number(p.idBodega || p.id_bodega || 1);
-          const cantidadReal = Math.abs(Number(p.cantidad || p.cant || 0));
+          const idVariante = Number(dataPayload.idVariante || dataPayload.id_variante || 1);
+          const idBodega = Number(dataPayload.idBodega || dataPayload.id_bodega || 1);
+          const cantidadSugerida = dataPayload.cantidadEsperada || dataPayload.cantidad || dataPayload.pxo_cantidad || dataPayload.pxd_cantidad;
+          const cantidadReal = Math.abs(Number(p.cantidad || p.cant || cantidadSugerida || 0));
 
           console.log("🚀 Disparando RPC de entrega para cabecera:", idCabecera);
 
@@ -606,6 +610,29 @@ export function useAgent(): UseAgentState & UseAgentActions {
         texto,
         nombreUsuario
       );
+
+      // PROTEGER EL ID DE CABECERA ORIGINAL Y CANTIDADES DE LA TAREA PENDIENTE
+      if (pendingTaskRef.current) {
+        const tareaOriginal = pendingTaskRef.current;
+        if (tarea.accion === tareaOriginal.accion || tarea.accion === 'CONFIRMAR_RECEPCION' || tarea.accion === 'CONFIRMAR_ENTREGA') {
+          const oPayload = (tareaOriginal.payload_json || tareaOriginal.payload || {}) as Record<string, any>;
+          const idOriginal = oPayload.idCabecera || oPayload.id_recepcion || oPayload.id_entrega || oPayload.id_compra || oPayload.id_documento;
+          const cantidadOriginal = oPayload.cantidadEsperada || oPayload.cantidad || oPayload.pxo_cantidad || oPayload.pxd_cantidad;
+
+          // Preservar ID original de la tarea de Supabase
+          if (tareaOriginal.id && tareaOriginal.id.length === 36) {
+            tarea.id = tareaOriginal.id;
+          }
+
+          tarea.payload = {
+            ...tarea.payload,
+            idCabecera: idOriginal ?? tarea.payload.idCabecera,
+            cantidadEsperada: cantidadOriginal ?? tarea.payload.cantidadEsperada,
+          };
+          // Forzar la retención del objeto inmutable original de Supabase
+          tarea.payload_json = oPayload;
+        }
+      }
 
       // 6b. INTERCEPTOR DE RESPUESTA — Extraer mensaje_usuario del JSON para mostrar en UI
       // Si Ollama devuelvió el JSON crudo visible en la burbuja, lo reemplazamos
