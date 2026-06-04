@@ -7,6 +7,8 @@ const Dashboard = lazy(() => import('@/app/dashboard/page'))
 const Dashboard2 = lazy(() => import('@/app/dashboard-2/page'))
 // ERP Modules — Proyecto RDA3
 const DashboardInventario = lazy(() => import('@/app/dashboard-inventario/page'))
+const DashVentas = lazy(() => import('@/app/dash-ventas/page'))
+const Ventas = lazy(() => import('@/app/ventas/page'))
 const Mail = lazy(() => import('@/app/mail/page'))
 const Tasks = lazy(() => import('@/app/tasks/page'))
 const Chat = lazy(() => import('@/app/chat/page'))
@@ -95,6 +97,14 @@ export const routes: RouteConfig[] = [
   {
     path: "/dashboard/inventario",
     element: <DashboardInventario />
+  },
+  {
+    path: "/dash-ventas",
+    element: <DashVentas />
+  },
+  {
+    path: "/ventas",
+    element: <Ventas />
   },
   {
     path: "/tthh/empleados",
