@@ -208,10 +208,10 @@ export default function DepartamentosPage() {
             </Table>
             
             {/* Controles de Paginación */}
-            {filteredDepartamentos.length > ITEMS_PER_PAGE && (
+            {totalPages > 1 && (
               <div className="flex items-center justify-between px-4 py-3 border-t">
                 <div className="text-sm text-muted-foreground">
-                  Mostrando del {(currentPage - 1) * ITEMS_PER_PAGE + 1} al {Math.min(currentPage * ITEMS_PER_PAGE, filteredDepartamentos.length)} de {filteredDepartamentos.length} departamentos
+                  Página {currentPage} de {totalPages}
                 </div>
                 <div className="flex gap-2">
                   <Button 

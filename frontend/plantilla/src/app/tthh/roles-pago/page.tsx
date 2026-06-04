@@ -60,38 +60,36 @@ export default function RolesPagoPage() {
   const fetchData = async () => {
     try {
       setLoading(true)
-      // Se carga de manera secuencial para no sobrecargar el backend (Render free tier) 
-      // Lotes de 2 para balancear velocidad y no saturar el backend
-      const [rolData, empData] = await Promise.all([
-        rolPagoService.getAll().catch(() => []),
-        empleadoService.getEmpleados().catch(() => [])
-      ])
-      
-      const [rubData, perData] = await Promise.all([
+      // 1. Carga principal: solo roles para que la tabla aparezca rápido
+      const rolData = await rolPagoService.getAll().catch(() => [])
+      setRoles(Array.isArray(rolData) ? rolData : [])
+      setLoading(false) // Mostrar tabla lo antes posible
+
+      // 2. Carga secundaria: datos para los dropdowns del modal (en segundo plano)
+      const [empData, rubData, perData, conData, rxrData] = await Promise.all([
+        empleadoService.getEmpleados(1, 500).catch(() => ({ data: [] })),
         rubroService.getAll().catch(() => []),
-        periodoService.getAll().catch(() => [])
-      ])
-      
-      const [conData, rxrData] = await Promise.all([
+        periodoService.getAllList().catch(() => []),
         contratoService.getAll().catch(() => []),
         rubrosxrolService.getAll().catch(() => [])
       ])
-      setRoles(Array.isArray(rolData) ? rolData : [])
-      
+
       if (Array.isArray(empData)) {
-        setEmpleados(empData.filter(e => e.emp_estado !== 'INC' && e.emp_estado !== 'INA'))
+        setEmpleados(empData)
       } else {
-        setEmpleados((empData.data || []).filter((e: Empleado) => e.emp_estado !== 'INC' && e.emp_estado !== 'INA'))
+        setEmpleados(empData.data || [])
       }
 
       setRubros(Array.isArray(rubData) ? rubData.filter((r: Rubro) => r.rub_estado === 'ACT') : [])
-      setPeriodos(Array.isArray(perData) ? perData.filter((p: Periodo) => p.per_estado !== 'INC' && p.per_estado !== 'CER') : [])
+      
+      const periodosRaw = Array.isArray(perData) ? perData : (perData as any).data || []
+      setPeriodos(periodosRaw.filter((p: Periodo) => p.per_estado !== 'INC' && p.per_estado !== 'CER'))
+      
       setContratos(Array.isArray(conData) ? conData.filter((c: any) => c.con_estado !== 'INC') : [])
       setRubrosxrol(Array.isArray(rxrData) ? rxrData : [])
       setCurrentPage(1)
     } catch (err: any) {
       setError(err.message || "Error al cargar datos")
-    } finally {
       setLoading(false)
     }
   }

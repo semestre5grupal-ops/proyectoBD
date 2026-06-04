@@ -261,10 +261,10 @@ export default function EmpleadosPage() {
             </Table>
             
             {/* Controles de Paginación */}
-            {filteredEmpleados.length > ITEMS_PER_PAGE && (
+            {totalPages > 1 && (
               <div className="flex items-center justify-between px-4 py-3 border-t">
                 <div className="text-sm text-muted-foreground">
-                  Mostrando del {(currentPage - 1) * ITEMS_PER_PAGE + 1} al {Math.min(currentPage * ITEMS_PER_PAGE, filteredEmpleados.length)} de {filteredEmpleados.length} empleados
+                  Página {currentPage} de {totalPages}
                 </div>
                 <div className="flex gap-2">
                   <Button 
