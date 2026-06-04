@@ -89,7 +89,7 @@ export default function UsuariosPage() {
         ...(editingUsuario || {}),
         usu_nombre: usuNombre,
         id_rol: parseInt(idRol),
-        usu_estado: editingUsuario?.usu_estado || 'ACTIVO',
+        usu_estado: editingUsuario?.usu_estado || 'ACT',
         id_empleado: editingUsuario?.id_empleado || null
       }
       // Solo enviar contraseña si se digitó una nueva
