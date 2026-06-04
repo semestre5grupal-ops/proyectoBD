@@ -25,6 +25,7 @@ export default function ComprasPage() {
     handleCreateSupplier,
     handleUpdateSupplier,
     handleCreateOrder,
+    handleUpdateOrder,
     handleUpdateOrderEstado,
     handleCreateReception,
     handleApproveReception,

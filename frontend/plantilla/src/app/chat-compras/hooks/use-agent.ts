@@ -2,7 +2,7 @@
  * use-agent.ts
  * ------------
  * HOOK ORQUESTADOR DEL AGENTE ERP
- * Proyecto RDA3 · Módulo de Inventario (Paul)
+ * Proyecto RDA3 · Módulo de Compras (Liz)
  *
  * Este hook implementa el pipeline completo:
  *
@@ -14,43 +14,45 @@
  *     ↓
  *   parseAgentResponse()       → validar JSON + seguridad de rol
  *     ↓
- *   TareaInventario en estado 'pendiente'
+ *   TareaCompras en estado 'pendiente'
  *     ↓
  *   ¿confirmacion_requerida?
  *     Sí → TaskCard en UI (el usuario confirma manualmente)
  *     No → ejecutarTarea() directamente
  *     ↓
- *   inventarioService.*()      → POST/GET al API de Render con JWT
+ *   comprasService.*()      → POST/GET al API de Render con JWT
  *
  * Golden Rules:
  *  ✅ Un solo punto de entrada de lógica de negocio del agente.
  *  ✅ Los componentes de UI solo llaman sendMessage() / confirmTask() / rejectTask().
- *  ✅ No hace fetch directo — delega a ollamaService e inventarioService.
+ *  ✅ No hace fetch directo — delega a ollamaService e comprasService.
  */
 
 import { useState, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 import { chatOllama, type OllamaMessage } from '@/services/ollamaService';
+import { crearNotificacionTarea } from '@/services/comprasService';
+import { crearNotificacionTarea as crearNotificacionInventario } from '@/services/inventarioService';
 import {
-  ingresarStock,
-  descontarStock,
-  consultarStock,
-  sincronizarCloud,
-  crearNotificacionTarea,
-} from '@/services/inventarioService';
+  createCompra,
+  updateCompraEstado,
+  getCompraDetails,
+  createRecepcion,
+  getProveedores,
+} from '@/app/compras/services/compras-service';
 import {
   SYSTEM_PROMPTS,
   mapearRolJWT,
-} from '@/app/chat/prompts/system-prompts';
+} from '@/app/chat-compras/prompts/system-prompts';
 import {
   PERMISOS_POR_ROL,
-  type TareaInventario,
+  type TareaCompras,
   type MensajeERP,
-  type RolInventario,
+  type RolCompras,
   type RespuestaAgente,
-  type AccionInventario,
-} from '@/app/chat/types/erp-agent';
+  type AccionCompras,
+} from '@/app/chat-compras/types/erp-agent';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TIPOS DEL HOOK
@@ -64,7 +66,7 @@ export interface UseAgentState {
   /** Error del pipeline (Ollama caído, JSON inválido, API error) */
   agentError: string | null;
   /** Rol actual del usuario autenticado */
-  rolActivo: RolInventario;
+  rolActivo: RolCompras;
   /** Nombre del usuario autenticado */
   nombreUsuario: string;
   /** ¿El micrófono está escuchando actualmente? */
@@ -76,9 +78,9 @@ export interface UseAgentActions {
   sendMessage: (texto: string) => Promise<void>;
   /** Activa/desactiva el reconocimiento de voz */
   toggleVoz: () => void;
-  /** Confirma la ejecución de una TareaInventario pendiente */
+  /** Confirma la ejecución de una TareaCompras pendiente */
   confirmarTarea: (tareaId: string) => Promise<void>;
-  /** Rechaza una TareaInventario pendiente */
+  /** Rechaza una TareaCompras pendiente */
   rechazarTarea: (tareaId: string) => void;
   /** Cancela la generación en curso */
   cancelarGeneracion: () => void;
@@ -93,7 +95,7 @@ export interface UseAgentActions {
    * Inyecta una TaskCard en el chat, típicamente usada al cargar
    * las notificaciones pendientes recuperadas del backend.
    */
-  inyectarTaskCardAgente: (tareaBase: Omit<TareaInventario, 'id' | 'timestamp' | 'confirmacion_requerida'> & { id?: string }) => void;
+  inyectarTaskCardAgente: (tareaBase: Omit<TareaCompras, 'id' | 'timestamp' | 'confirmacion_requerida'> & { id?: string }) => void;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -102,10 +104,10 @@ export interface UseAgentActions {
 
 /**
  * Lee el JWT del localStorage y extrae el rol del usuario.
- * Reutiliza la misma lógica que dashboard-inventario/page.tsx.
+ * Reutiliza la misma lógica que dashboard-compras/page.tsx.
  */
-function leerSesionDesdeJWT(): { rol: RolInventario; nombre: string } {
-  const DEFAULT = { rol: 'JEFE_INVENTARIO' as RolInventario, nombre: 'Usuario' };
+function leerSesionDesdeJWT(): { rol: RolCompras; nombre: string } {
+  const DEFAULT = { rol: 'JEFE_COMPRAS' as RolCompras, nombre: 'Usuario' };
   const token = localStorage.getItem('jwt_token');
   if (!token) return DEFAULT;
 
@@ -133,14 +135,14 @@ function leerSesionDesdeJWT(): { rol: RolInventario; nombre: string } {
  */
 function parseAgentResponse(
   texto: string,
-  rolActivo: RolInventario,
+  rolActivo: RolCompras,
   instruccion_original: string,
   nombreUsuario: string
-): TareaInventario {
+): TareaCompras {
   const id = uuidv4();
   const timestamp = new Date().toISOString();
 
-  const fallback = (mensaje: string): TareaInventario => ({
+  const fallback = (mensaje: string): TareaCompras => ({
     id,
     accion: 'INFORMATIVO',
     payload: {},
@@ -182,10 +184,10 @@ function parseAgentResponse(
 
   // ── Validar permisos de rol (segunda línea de defensa tras el system prompt) ──
   const permisosDelRol = PERMISOS_POR_ROL[rolActivo];
-  const accion: AccionInventario = parsed.accion;
+  const accion: AccionCompras = parsed.accion;
   if (!permisosDelRol.includes(accion)) {
     return fallback(
-      `La acción "${accion}" no está permitida para tu rol (${rolActivo}). Contacta al Jefe de Inventario.`
+      `La acción "${accion}" no está permitida para tu rol (${rolActivo}). Contacta al Jefe de Compras.`
     );
   }
 
@@ -205,15 +207,15 @@ function parseAgentResponse(
     timestamp,
     rol_origen: rolActivo,
     // Propagar rol_destino del JSON de Ollama si existe
-    rol_destino: (parsed.rol_destino as RolInventario | undefined) ?? undefined,
+    rol_destino: (parsed.rol_destino as RolCompras | undefined) ?? undefined,
     instruccion_original,
   };
 }
 
 /**
- * Crea un MensajeERP de tipo 'task_card' desde una TareaInventario.
+ * Crea un MensajeERP de tipo 'task_card' desde una TareaCompras.
  */
-function crearMensajeTarea(tarea: TareaInventario): MensajeERP {
+function crearMensajeTarea(tarea: TareaCompras): MensajeERP {
   return {
     id: `msg-${tarea.id}`,
     content: tarea.mensaje_usuario,
@@ -278,7 +280,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
   const [mensajes, setMensajes] = useState<MensajeERP[]>([]);
   const [agentThinking, setAgentThinking] = useState(false);
   const [agentError, setAgentError] = useState<string | null>(null);
-  const [rolActivo]     = useState<RolInventario>(sesion.rol);
+  const [rolActivo]     = useState<RolCompras>(sesion.rol);
   const [nombreUsuario] = useState<string>(sesion.nombre);
   const [escuchando, setEscuchando] = useState(false);
 
@@ -287,11 +289,11 @@ export function useAgent(): UseAgentState & UseAgentActions {
   const recognitionRef     = useRef<any>(null);
   const historialRef       = useRef<OllamaMessage[]>([]); // historial de conversación
   /**
-   * pendingTaskRef: referencia a la TareaInventario cuya TaskCard está visible
+   * pendingTaskRef: referencia a la TareaCompras cuya TaskCard está visible
    * y esperando acción humana. Se usa para el control de confirmación por voz.
    * null = no hay tarea activa esperando confirmación.
    */
-  const pendingTaskRef = useRef<TareaInventario | null>(null);
+  const pendingTaskRef = useRef<TareaCompras | null>(null);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ACCIÓN: Añadir mensaje a la lista
@@ -313,14 +315,14 @@ export function useAgent(): UseAgentState & UseAgentActions {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // ACCIÓN: Ejecutar una TareaInventario contra inventarioService
+  // ACCIÓN: Ejecutar una TareaCompras contra comprasService
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const ejecutarTarea = useCallback(async (tarea: TareaInventario): Promise<void> => {
+  const ejecutarTarea = useCallback(async (tarea: TareaCompras): Promise<void> => {
     const { accion, payload } = tarea;
 
     // ── Pre-flight: verificar que haya token antes de llamar al backend ──────
-    // Evita que inventarioService lance SESION_EXPIRADA cuando nunca hubo token.
+    // Evita que comprasService lance SESION_EXPIRADA cuando nunca hubo token.
     const tokenActual = localStorage.getItem('jwt_token');
     if (!tokenActual) {
       setAgentError('Sesión no encontrada. Por favor inicia sesión para ejecutar esta acción.');
@@ -338,59 +340,79 @@ export function useAgent(): UseAgentState & UseAgentActions {
       let resultado: any;
 
       switch (accion) {
-        case 'INGRESAR_STOCK': {
-          if (
-            payload.idVariante == null ||
-            payload.cantidad == null ||
-            payload.idBodega == null
-          ) {
-            throw new Error('Faltan datos para ingresar stock: idVariante, cantidad o idBodega.');
+        case 'CREAR_ORDEN': {
+          if (!payload.idProveedor || !payload.productos?.length) {
+            throw new Error('Faltan datos para crear la orden: idProveedor o productos.');
           }
-          resultado = await ingresarStock({
-            idVariante: payload.idVariante,
-            cantidad: payload.cantidad,
-            idBodega: payload.idBodega,
-            descripcion: payload.descripcion ?? 'Ingreso vía Agente IA',
-            usuario: payload.usuario ?? nombreUsuario,
+
+          // Calcular totales automáticamente
+          const subtotal = payload.productos.reduce((sum, p) => sum + (p.cantidad * (p.valor || 0)), 0);
+          const iva = subtotal * 0.15; // IVA 15%
+          const total = subtotal + iva;
+
+          // Fecha de entrega por defecto: hoy
+          const oc_fechaentrega = new Date().toISOString().split('T')[0];
+
+          resultado = await createCompra({
+            id_proveedor: payload.idProveedor,
+            oc_estado: 'ABI',
+            oc_subtotal: subtotal,
+            oc_iva: iva,
+            oc_total: total,
+            oc_fechaentrega: oc_fechaentrega,
+            items: payload.productos.map(p => ({
+              id_variante: p.idVariante,
+              pxo_cantidad: p.cantidad,
+              pxo_valor: p.valor || 0,
+              pxo_subtotal: p.cantidad * (p.valor || 0)
+            }))
           });
           break;
         }
 
-        case 'CREAR_PRODUCTO':
-        case 'AUTORIZAR_AJUSTE': {
-          // El Jefe delega — estas acciones NO ejecutan stock directamente.
-          // Solo persisten la notificación en el backend (ya ocurrió al llamar
-          // ingresarStock del Jefe, o se deja pendiente para el Operativo).
-          // Resultado exitoso sin impacto inmediato en stock.
-          resultado = { success: true, message: 'Tarea delegada al Operativo de Inventario.' };
+        case 'APROBAR_ORDEN': {
+          if (!payload.idCompra) throw new Error('Falta el idCompra para aprobar.');
+          resultado = await updateCompraEstado(payload.idCompra, 'APR');
+          // La notificación y sincronización a Inventario ahora ocurre automáticamente en el Backend (compraController.js)
           break;
         }
 
-        case 'DESCONTAR_STOCK': {
-          if (payload.idVariante == null || payload.cantidad == null) {
-            throw new Error('Faltan datos: idVariante y cantidad son obligatorios.');
-          }
-          resultado = await descontarStock(payload.idVariante, payload.cantidad);
+        case 'ANULAR_ORDEN': {
+          if (!payload.idCompra) throw new Error('Falta el idCompra para anular.');
+          resultado = await updateCompraEstado(payload.idCompra, 'ANU');
           break;
         }
 
-        case 'CONSULTAR': {
-          if (payload.idVariante == null) {
-            throw new Error('Falta el ID de la variante a consultar.');
-          }
-          resultado = await consultarStock(payload.idVariante);
+        case 'CONSULTAR_ORDEN': {
+          if (!payload.idCompra) throw new Error('Falta el idCompra a consultar.');
+          resultado = await getCompraDetails(payload.idCompra);
           break;
         }
 
-        case 'SINCRONIZAR':
-          resultado = await sincronizarCloud();
+        case 'REGISTRAR_RECEPCION': {
+          if (!payload.idCompra) throw new Error('Falta el idCompra para la recepción.');
+          const detallesOrden = await getCompraDetails(payload.idCompra);
+          resultado = await createRecepcion({
+            id_compra: payload.idCompra,
+            id_bodega: payload.idBodega || 1,
+            rec_descripcion: payload.observacion || 'Recepción vía Agente IA',
+            usu_responsable: nombreUsuario,
+            items: detallesOrden.items.map(item => ({
+              id_variante: item.id_variante,
+              pxr_cantidad_solicitada: item.pxo_cantidad,
+              pxr_qty_recibida: item.pxo_cantidad,
+              pxr_diferencia: 0,
+              pxr_motivo_diferencia: null
+            }))
+          });
           break;
+        }
 
+        case 'REGISTRAR_DEVOLUCION':
+        case 'CREAR_PROVEEDOR':
         case 'INFORMATIVO':
-        case 'DAR_DE_BAJA':
         default:
-          // Estas acciones no tienen endpoint directo en inventarioService
-          resultado = { success: true, message: 'Acción registrada.' };
+          resultado = { success: true, message: 'Acción registrada correctamente.' };
           break;
       }
 
@@ -413,9 +435,10 @@ export function useAgent(): UseAgentState & UseAgentActions {
       );
 
       // ── Añadir mensaje de confirmación del sistema ────────────────────────
+      const mensajeSistema = formatearResultado(accion, resultado);
       agregarMensaje({
         id: `msg-ok-${Date.now()}`,
-        content: formatearResultado(accion, resultado),
+        content: mensajeSistema,
         timestamp: new Date().toISOString(),
         senderId: 'agent',
         type: 'text',
@@ -423,6 +446,15 @@ export function useAgent(): UseAgentState & UseAgentActions {
         reactions: [],
         replyTo: null,
       });
+
+      // ── Inyectar resultado al historial de la IA para dar contexto ────────
+      // Se inyecta como un mensaje del usuario simulado y una respuesta válida en JSON,
+      // para que el LLM (Llama 3.2) no se confunda con roles 'system' a mitad del chat y rompa el formato JSON.
+      historialRef.current = [
+        ...historialRef.current,
+        { role: 'user' as const, content: `[Sistema Interno] Notificación de la ejecución anterior:\n${mensajeSistema}` },
+        { role: 'assistant' as const, content: `{ "accion": "INFORMATIVO", "payload": {}, "confirmacion_requerida": false, "mensaje_usuario": "Registrado en memoria." }` }
+      ].slice(-20);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error desconocido al ejecutar la tarea.';
 
@@ -512,26 +544,55 @@ export function useAgent(): UseAgentState & UseAgentActions {
         { role: 'assistant' as const, content: respuestaCompleta },
       ].slice(-20); // mantener máximo 20 mensajes de historial (10 turnos)
 
-      // 6. Parsear la respuesta y crear TareaInventario
-      const tarea = parseAgentResponse(
+      // 6. Parsear la respuesta y crear TareaCompras
+      let tarea = parseAgentResponse(
         respuestaCompleta,
         rolActivo,
         texto,
         nombreUsuario
       );
 
-      // 7a. Si es INFORMATIVO → la burbuja de texto ya tiene la respuesta, no añadir TaskCard
+      // --- Intercepción asíncrona para resolver Proveedor por nombre ---
+      if (tarea.accion === 'CREAR_ORDEN' && tarea.payload.nombreProveedor && !tarea.payload.idProveedor) {
+        try {
+          const proveedores = await getProveedores();
+          const pName = tarea.payload.nombreProveedor.toLowerCase();
+          const match = proveedores.find(p => p.prv_nombre.toLowerCase().includes(pName));
+          if (match) {
+            tarea.payload.idProveedor = match.id_proveedor;
+            tarea.payload.nombreProveedor = match.prv_nombre; // actual name
+            tarea.mensaje_usuario = `He encontrado al proveedor "${match.prv_nombre}". ` + tarea.mensaje_usuario;
+          } else {
+            tarea.accion = 'INFORMATIVO';
+            tarea.confirmacion_requerida = false;
+            tarea.mensaje_usuario = `No pude encontrar ningún proveedor que coincida con "${tarea.payload.nombreProveedor}". Por favor verifica el nombre exacto.`;
+            // Re-escribir la burbuja de streaming con este error
+            setMensajes(prev =>
+              prev.map(m =>
+                m.id === thinkingId ? { ...m, content: tarea.mensaje_usuario } : m
+              )
+            );
+          }
+        } catch (e) {
+          console.error("Error al buscar proveedores", e);
+        }
+      }
+
+      // 7a. Si es INFORMATIVO → la burbuja de texto ya tiene la respuesta (raw), la limpiamos
       if (tarea.accion === 'INFORMATIVO') {
-        // La respuesta ya está visible en la burbuja de streaming
-        // 🔊 Leer el mensaje en voz alta automáticamente
-        emitirVoz(respuestaCompleta);
+        setMensajes(prev =>
+          prev.map(m =>
+            m.id === thinkingId ? { ...m, content: tarea.mensaje_usuario } : m
+          )
+        );
+        // 🔊 Leer el mensaje limpio en voz alta automáticamente
+        emitirVoz(tarea.mensaje_usuario);
         setAgentThinking(false);
         return;
       }
 
-      // ══ Regla de oro: CREAR_PRODUCTO y AUTORIZAR_AJUSTE son SIEMPRE confirmación requerida ══
-      const accionesQueRequierenConfirmacion: AccionInventario[] = [
-        'CREAR_PRODUCTO', 'AUTORIZAR_AJUSTE', 'DAR_DE_BAJA', 'SINCRONIZAR',
+      const accionesQueRequierenConfirmacion: AccionCompras[] = [
+        'CREAR_ORDEN', 'APROBAR_ORDEN', 'ANULAR_ORDEN', 'CREAR_PROVEEDOR', 'REGISTRAR_RECEPCION', 'REGISTRAR_DEVOLUCION'
       ];
       const confirmacionForzada =
         tarea.confirmacion_requerida ||
@@ -567,7 +628,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
 
       } else if (confirmacionForzada) {
         // 7b. Requiere confirmación del usuario actual → TaskCard
-        const tareaConFlag: TareaInventario = { ...tarea, confirmacion_requerida: true };
+        const tareaConFlag: TareaCompras = { ...tarea, confirmacion_requerida: true };
         setMensajes(prev =>
           prev.map(m =>
             m.id === thinkingId ? crearMensajeTarea(tareaConFlag) : m
@@ -613,7 +674,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
     const mensaje = mensajes.find(m => m.tarea?.id === tareaId);
     if (!mensaje?.tarea) return;
 
-    const tarea: TareaInventario = { ...mensaje.tarea, estado: 'confirmada' };
+    const tarea: TareaCompras = { ...mensaje.tarea, estado: 'confirmada' };
     setMensajes(prev =>
       prev.map(m =>
         m.tarea?.id === tareaId ? { ...m, tarea } : m
@@ -753,8 +814,8 @@ export function useAgent(): UseAgentState & UseAgentActions {
    * Inyecta una TaskCard en el chat, típicamente usada al cargar
    * las notificaciones pendientes recuperadas del backend.
    */
-  const inyectarTaskCardAgente = useCallback((tareaBase: Omit<TareaInventario, 'id' | 'timestamp' | 'confirmacion_requerida'> & { id?: string }): void => {
-    const tareaCompleta: TareaInventario = {
+  const inyectarTaskCardAgente = useCallback((tareaBase: Omit<TareaCompras, 'id' | 'timestamp' | 'confirmacion_requerida'> & { id?: string }): void => {
+    const tareaCompleta: TareaCompras = {
       ...tareaBase,
       id: tareaBase.id ?? uuidv4(),
       timestamp: new Date().toISOString(),
@@ -791,24 +852,22 @@ export function useAgent(): UseAgentState & UseAgentActions {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function formatearResultado(
-  accion: AccionInventario,
+  accion: AccionCompras,
   resultado: Record<string, unknown>
 ): string {
   switch (accion) {
-    case 'INGRESAR_STOCK':
-      return `✅ Stock ingresado correctamente. Stock actual: ${resultado.stock_actual ?? '—'} uds.`;
-    case 'DESCONTAR_STOCK':
-      return `✅ Stock descontado. Stock restante: ${resultado.stock_restante ?? '—'} uds.`;
-    case 'CONSULTAR':
-      return `📦 Stock disponible: ${resultado.stock_disponible ?? '—'} uds. (Bodega ${resultado.id_bodega ?? '—'})`;
-    case 'SINCRONIZAR':
-      return `☁️ Sincronización completada. Items procesados: ${resultado.items_sincronizados ?? '—'}.`;
-    case 'CONFIRMAR_RECEPCION':
-      return '✅ Recepción confirmada y registrada.';
-    case 'CREAR_PRODUCTO':
-      return '📤 Orden de recepción generada y enviada al Operativo de Inventario.';
-    case 'AUTORIZAR_AJUSTE':
-      return '✅ Ajuste autorizado. El Operativo debe confirmar la ejecución en bodega.';
+    case 'CREAR_ORDEN':
+      return `✅ Orden de Compra generada correctamente. (ID: ${resultado.id_compra ?? '—'})`;
+    case 'APROBAR_ORDEN':
+      return `✅ Orden de Compra aprobada exitosamente. ${resultado.integrationMessage || ''}`.trim();
+    case 'ANULAR_ORDEN':
+      return `✅ Orden de Compra anulada.`;
+    case 'CONSULTAR_ORDEN':
+      return `📄 Orden ${resultado.id_compra}: Estado ${resultado.oc_estado}, Total $${resultado.oc_total}`;
+    case 'REGISTRAR_RECEPCION':
+      return `✅ Recepción física registrada para la orden ${resultado.id_compra ?? '—'}.`;
+    case 'REGISTRAR_DEVOLUCION':
+      return `✅ Devolución registrada al proveedor.`;
     default:
       return String(resultado.message ?? 'Operación completada.');
   }
