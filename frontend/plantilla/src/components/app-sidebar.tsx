@@ -71,20 +71,14 @@ const data = {
           icon: ShoppingCart,
           items: [
             {
-              title: "Órdenes de Compra",
-              url: "/dashboard/compras/ordenes",
+              title: "Dashboard Compras",
+              url: "/dashboard/compras",
             },
             {
-              title: "Proveedores",
-              url: "/dashboard/compras/proveedores",
+              title: "Agente IA (Compras)",
+              url: "/chat-compras",
             },
           ],
-        },
-        // Alejandro — Talento Humano: agregar aquí cuando esté listo
-        {
-          title: "Compras (Liz)",
-          url: "/dashboard/compras",
-          icon: ShoppingCart,
         },
         {
           title: "Talento Humano (Alejandro)",

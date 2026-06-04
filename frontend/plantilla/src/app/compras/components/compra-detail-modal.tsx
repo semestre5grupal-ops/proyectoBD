@@ -7,9 +7,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Edit2, Check, X, Plus, Trash2, ShieldAlert } from "lucide-react";
+import { Edit2, Check, X, Plus, Trash2, ShieldAlert, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { getRolCompras } from "../utils/rbac";
 
 interface VariantAttributes {
@@ -19,8 +22,8 @@ interface VariantAttributes {
   sizeOrWeight: string;
 }
 
-const parseVariantAttributes = (v: { id_variante: number; var_nombre: string; var_precio_venta: number }): VariantAttributes => {
-  const name = v.var_nombre;
+const parseVariantAttributes = (v: { id_variante: number; var_nombre?: string; var_precio_venta?: number }): VariantAttributes => {
+  const name = v.var_nombre || `Variante ${v.id_variante}`;
   const nameLower = name.toLowerCase();
   let productName = name;
   let colorOrFlavor = "Estándar";
@@ -83,9 +86,15 @@ export function CompraDetailModal({
   
   // Edit Form States
   const [proveedorId, setProveedorId] = useState("");
+  const [isProveedorOpen, setIsProveedorOpen] = useState(false);
+  const [fechaEmision, setFechaEmision] = useState("");
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [ivaPercent, setIvaPercent] = useState("15");
   const [items, setItems] = useState<Proxoc[]>([]);
+
+  const today = new Date();
+  today.setDate(today.getDate() - 1);
+  const maxEmisionDate = today.toISOString().split("T")[0];
 
   // Item Selector State
   const [selectedVariantId, setSelectedVariantId] = useState("");
@@ -132,7 +141,7 @@ export function CompraDetailModal({
         setSelectedVariantId(match.id_variante.toString());
         const variant = variants.find(v => v.id_variante === match.id_variante);
         if (variant) {
-          setUnitCost(variant.var_precio_venta * 0.6);
+          setUnitCost((variant.var_precio_venta || 10) * 0.6);
         }
       } else {
         setSelectedVariantId("");
@@ -173,9 +182,21 @@ export function CompraDetailModal({
       setRole(getRolCompras());
       setIsEditing(defaultEditMode);
       if (order) {
-        setProveedorId(order.id_proveedor.toString());
+        setProveedorId(order.id_proveedor?.toString() || "");
+        setFechaEmision(order.oc_fecha ? order.oc_fecha.split('T')[0] : "");
         setFechaEntrega(order.oc_fechaentrega ? order.oc_fechaentrega.split('T')[0] : "");
-        setIvaPercent(order.oc_iva.toString());
+        let parsedIva = 15;
+        if (order.oc_iva === 12 || order.oc_iva === 15) {
+          parsedIva = order.oc_iva;
+        } else if (order.oc_iva && order.oc_subtotal && order.oc_subtotal > 0) {
+          // If it was incorrectly saved as monetary amount, deduce the percentage
+          const deducedIva = Math.round((order.oc_iva / order.oc_subtotal) * 100);
+          if (deducedIva === 12 || deducedIva === 15) {
+            parsedIva = deducedIva;
+          }
+        }
+        
+        setIvaPercent(parsedIva.toString());
         setItems(order.items || []);
       }
     }
@@ -227,7 +248,7 @@ export function CompraDetailModal({
   };
 
   // Calculations
-  const calculatedSubtotal = items.reduce((acc, item) => acc + (item.pxo_subtotal || (item.pxo_cantidad * item.pxo_valor)), 0);
+  const calculatedSubtotal = items.reduce((acc, item) => acc + (Number(item.pxo_subtotal) || (Number(item.pxo_cantidad) * Number(item.pxo_valor || 0))), 0);
   const calculatedIvaVal = calculatedSubtotal * (Number(ivaPercent) / 100);
   const calculatedTotal = calculatedSubtotal + calculatedIvaVal;
 
@@ -238,7 +259,9 @@ export function CompraDetailModal({
     }
 
     const payload: Compra = {
+      ...order,
       id_proveedor: Number(proveedorId),
+      oc_fecha: fechaEmision || undefined,
       oc_fechaentrega: fechaEntrega || null,
       oc_subtotal: Number(calculatedSubtotal.toFixed(2)),
       oc_iva: Number(ivaPercent),
@@ -247,7 +270,7 @@ export function CompraDetailModal({
         id_variante: item.id_variante,
         pxo_cantidad: item.pxo_cantidad,
         pxo_valor: item.pxo_valor,
-        pxo_subtotal: Number((item.pxo_cantidad * item.pxo_valor).toFixed(2))
+        pxo_subtotal: Number((item.pxo_cantidad * (item.pxo_valor || 0)).toFixed(2))
       }))
     };
 
@@ -306,21 +329,63 @@ export function CompraDetailModal({
         <div className="grid gap-6 py-2">
           {/* Header Details */}
           {isEditing ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex flex-col gap-2">
-                <Label htmlFor="edit_proveedor">Proveedor *</Label>
-                <Select value={proveedorId} onValueChange={setProveedorId}>
-                  <SelectTrigger id="edit_proveedor">
-                    <SelectValue placeholder="Seleccione proveedor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {suppliers.filter(s => s.prv_estado === 'ACT' || s.id_proveedor === order.id_proveedor).map(s => (
-                      <SelectItem key={s.id_proveedor} value={s.id_proveedor?.toString() || ""}>
-                        {s.prv_nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Proveedor *</Label>
+                <Popover open={isProveedorOpen} onOpenChange={setIsProveedorOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={isProveedorOpen}
+                      className="w-full justify-between font-normal"
+                    >
+                      {proveedorId
+                        ? suppliers.find((s) => s.id_proveedor?.toString() === proveedorId)?.prv_nombre
+                        : "Seleccione proveedor..."}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[300px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Buscar proveedor..." />
+                      <CommandList>
+                        <CommandEmpty>No se encontraron proveedores.</CommandEmpty>
+                        <CommandGroup>
+                          {suppliers.filter(s => s.prv_estado === 'ACT' || s.id_proveedor === order.id_proveedor).map((s) => (
+                            <CommandItem
+                              key={s.id_proveedor}
+                              value={s.prv_nombre}
+                              onSelect={() => {
+                                setProveedorId(s.id_proveedor?.toString() || "");
+                                setIsProveedorOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  proveedorId === s.id_proveedor?.toString() ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {s.prv_nombre}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="edit_fecha_emi">Fecha Emisión OC</Label>
+                <Input
+                  id="edit_fecha_emi"
+                  type="date"
+                  max={maxEmisionDate}
+                  value={fechaEmision}
+                  onChange={(e) => setFechaEmision(e.target.value)}
+                />
               </div>
 
               <div className="flex flex-col gap-2">
@@ -335,9 +400,9 @@ export function CompraDetailModal({
 
               <div className="flex flex-col gap-2">
                 <Label htmlFor="edit_iva_percent">Porcentaje IVA (%) *</Label>
-                <Select value={ivaPercent} onValueChange={setIvaPercent}>
-                  <SelectTrigger id="edit_iva_percent">
-                    <SelectValue />
+                <Select value={ivaPercent} disabled>
+                  <SelectTrigger id="edit_iva_percent" className="bg-muted/50 opacity-100 disabled:cursor-not-allowed">
+                    <SelectValue placeholder="15 %" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="12">12 %</SelectItem>
@@ -369,11 +434,13 @@ export function CompraDetailModal({
           {isEditing && (
             <div className="border rounded-lg p-4 bg-muted/30">
               <h4 className="text-sm font-semibold mb-3">Agregar Item al Detalle</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              
+              {/* Producto Row */}
+              <div className="grid grid-cols-1 gap-4 mb-4">
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="edit_product_sel">Producto</Label>
                   <Select value={selectedProduct} onValueChange={(val) => { setSelectedProduct(val); setSelectedColor(""); setSelectedSize(""); }}>
-                    <SelectTrigger id="edit_product_sel">
+                    <SelectTrigger id="edit_product_sel" className="w-full">
                       <SelectValue placeholder="Seleccione producto" />
                     </SelectTrigger>
                     <SelectContent>
@@ -383,7 +450,10 @@ export function CompraDetailModal({
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
 
+              {/* Color and Talla Row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="edit_color_sel">Color</Label>
                   <Select value={selectedColor} onValueChange={(val) => { setSelectedColor(val); setSelectedSize(""); }} disabled={!selectedProduct}>
@@ -413,8 +483,9 @@ export function CompraDetailModal({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 items-end">
-                <div className="flex flex-col gap-2">
+              {/* Cantidad and Costo Row */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                <div className="flex flex-col gap-2 md:col-span-4 lg:col-span-3">
                   <Label htmlFor="edit_qty_opt">Cantidad</Label>
                   <Input
                     id="edit_qty_opt"
@@ -425,7 +496,7 @@ export function CompraDetailModal({
                   />
                 </div>
 
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 md:col-span-4 lg:col-span-3">
                   <Label htmlFor="edit_unit_cost">Costo Unitario ($)</Label>
                   <Input
                     id="edit_unit_cost"
@@ -437,7 +508,7 @@ export function CompraDetailModal({
                   />
                 </div>
 
-                <div>
+                <div className="md:col-span-4 lg:col-span-6">
                   <Button 
                     type="button" 
                     variant="outline" 
@@ -502,11 +573,11 @@ export function CompraDetailModal({
                               onChange={(e) => handleUpdateItemCost(idx, Math.max(0.01, Number(e.target.value)))}
                             />
                           ) : (
-                            `$${item.pxo_valor.toFixed(2)}`
+                            `$${Number(item.pxo_valor).toFixed(2)}`
                           )}
                         </TableCell>
                         <TableCell className="text-right font-medium">
-                          ${subtotal.toFixed(2)}
+                          ${Number(subtotal).toFixed(2)}
                         </TableCell>
                         {isEditing && (
                           <TableCell className="text-right">

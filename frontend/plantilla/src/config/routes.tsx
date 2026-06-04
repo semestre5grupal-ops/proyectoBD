@@ -10,6 +10,7 @@ const DashboardInventario = lazy(() => import('@/app/dashboard-inventario/page')
 const Mail = lazy(() => import('@/app/mail/page'))
 const Tasks = lazy(() => import('@/app/tasks/page'))
 const Chat = lazy(() => import('@/app/chat/page'))
+const ChatCompras = lazy(() => import('@/app/chat-compras/page'))
 const Calendar = lazy(() => import('@/app/calendar/page'))
 const Users = lazy(() => import('@/app/users/page'))
 const Compras = lazy(() => import('@/app/compras/page'))
@@ -165,6 +166,10 @@ export const routes: RouteConfig[] = [
   {
     path: "/chat",
     element: <Chat />
+  },
+  {
+    path: "/chat-compras",
+    element: <ChatCompras />
   },
   {
     path: "/calendar",
