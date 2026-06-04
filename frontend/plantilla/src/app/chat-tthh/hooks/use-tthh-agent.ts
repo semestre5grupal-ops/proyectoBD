@@ -108,20 +108,7 @@ function crearMensajeTarea(tarea: TareaTTHH): MensajeTTHH {
 export function emitirVoz(texto: string): void {
   if (typeof window === 'undefined' || !window.speechSynthesis) return;
   window.speechSynthesis.cancel();
-  
-  // Limpiar markdown y símbolos raros para que el TTS lo lea fluido
-  const textoLimpio = texto
-    .replace(/\*\*/g, '')
-    .replace(/\*/g, '')
-    .replace(/#/g, '')
-    .replace(/_/g, '')
-    .replace(/`/g, '')
-    .replace(/\[|\]/g, '')
-    .replace(/-/g, '')
-    .replace(/\$/g, ' dólares ')
-    .trim();
-
-  const utterance = new SpeechSynthesisUtterance(textoLimpio);
+  const utterance = new SpeechSynthesisUtterance(texto);
   utterance.lang = 'es-EC';
   const voces = window.speechSynthesis.getVoices();
   if (voces.length > 0) {
@@ -195,6 +182,8 @@ export function useTTHHAgent(): UseTTHHAgentState & UseTTHHAgentActions {
     // 1. Detección inteligente de cédula ecuatoriana (10 dígitos)
     let contextoEmpleado = '';
     const matchCedula = texto.match(/\b\d{10}\b/);
+    const isSoloCedula = /^\d{10}$/.test(texto.trim());
+    
     if (matchCedula) {
       const cedula = matchCedula[0];
       try {
@@ -231,70 +220,57 @@ export function useTTHHAgent(): UseTTHHAgentState & UseTTHHAgentActions {
             rolInfo = `Último rol: Neto $${lastRol.rol_neto}, Días trabajados: ${lastRol.rol_dias_trabajados}, Bonos $${lastRol.rol_bontotal}, Descuentos $${lastRol.rol_destotal}.`;
           }
 
-          // INYECTAR TARJETA UI "WOW FACTOR"
-          agregarMensaje({
-            id: `msg-emp-card-${Date.now()}`,
-            content: '',
-            timestamp: new Date().toISOString(),
-            senderId: 'system',
-            type: 'employee_card',
-            isEdited: false,
-            reactions: [],
-            replyTo: null,
-            empleado_data: {
-              nombre: `${emp.emp_nom1} ${emp.emp_nom2 || ''} ${emp.emp_ap1} ${emp.emp_ap2 || ''}`.trim(),
-              cedula: emp.emp_cedula,
-              correo: emp.emp_email,
-              telefono: emp.emp_telefono,
-              sueldoBase,
-              vacSaldoTotal,
-              asistencias: totalAsistencias,
-              fechaInicio: contratoActivo?.con_fechainicio,
-              estado: contratoActivo?.con_estado || 'INACTIVO'
-            }
-          });
+          // Si es solo cédula, responder directamente con información + despido
+          if (isSoloCedula) {
+            let respuestaDirect = `INFORMACIÓN DEL EMPLEADO\n` +
+              `========================\n` +
+              `Nombre: ${emp.emp_nom1} ${emp.emp_nom2 || ''} ${emp.emp_ap1} ${emp.emp_ap2 || ''}\n` +
+              `Cédula: ${emp.emp_cedula}\n` +
+              `Estado: ${contratoActivo?.con_estado || 'INACTIVO'}\n` +
+              `Sueldo Base: $${sueldoBase}\n` +
+              `Vacaciones: ${vacSaldoTotal} días\n` +
+              `Correo: ${emp.emp_email || 'No especificado'}\n` +
+              `Teléfono: ${emp.emp_telefono || 'No especificado'}\n` +
+              `Asistencias: ${totalAsistencias} marcaciones\n` +
+              `Últimas asistencias: ${ultimasAsist || 'Ninguna'}\n`;
 
-          // Cálculo de liquidación predictiva
-          let calculoLiquidacion = "";
-          if (contratoActivo && contratoActivo.con_fechainicio && sueldoBase > 0) {
-            const fechaInicio = new Date(contratoActivo.con_fechainicio);
-            const hoy = new Date();
-            
-            // Años exactos
-            let anosServicio = hoy.getFullYear() - fechaInicio.getFullYear();
-            const mesActual = hoy.getMonth();
-            const mesInicio = fechaInicio.getMonth();
-            if (mesActual < mesInicio || (mesActual === mesInicio && hoy.getDate() < fechaInicio.getDate())) {
-              anosServicio--;
-            }
-            if (anosServicio < 0) anosServicio = 0;
+            // Cálculo de despido intempestivo
+            if (contratoActivo && contratoActivo.con_fechainicio && sueldoBase > 0) {
+              const fechaInicio = new Date(contratoActivo.con_fechainicio);
+              const hoy = new Date();
+              
+              let anosServicio = hoy.getFullYear() - fechaInicio.getFullYear();
+              const mesActual = hoy.getMonth();
+              const mesInicio = fechaInicio.getMonth();
+              if (mesActual < mesInicio || (mesActual === mesInicio && hoy.getDate() < fechaInicio.getDate())) {
+                anosServicio--;
+              }
+              if (anosServicio < 0) anosServicio = 0;
 
-            // Fracción de año para el Código del Trabajo se cuenta como año completo (Art. 188)
-            let anosCalculoDespido = anosServicio;
-            if (hoy.getMonth() > fechaInicio.getMonth() || (hoy.getMonth() === fechaInicio.getMonth() && hoy.getDate() > fechaInicio.getDate())) {
-              anosCalculoDespido++;
-            }
-            if (anosCalculoDespido === 0) anosCalculoDespido = 1;
+              let anosCalculoDespido = anosServicio;
+              if (hoy.getMonth() > fechaInicio.getMonth() || (hoy.getMonth() === fechaInicio.getMonth() && hoy.getDate() > fechaInicio.getDate())) {
+                anosCalculoDespido++;
+              }
+              if (anosCalculoDespido === 0) anosCalculoDespido = 1;
 
-            // Indemnización por Despido Intempestivo (Art. 188)
-            // Hasta 3 años -> 3 meses de remuneración. Más de 3 años -> 1 mes por cada año.
-            let mesesIndemnizacion = anosCalculoDespido <= 3 ? 3 : anosCalculoDespido;
-            const indemnizacionDespido = sueldoBase * mesesIndemnizacion;
-            
-            // Desahucio (Art. 185) -> 25% de la última remuneración por cada año completo
-            const desahucio = sueldoBase * 0.25 * (anosServicio > 0 ? anosServicio : 1);
-            
-            // Vacaciones no gozadas -> sueldo diario * días
-            const pagoVacaciones = (sueldoBase / 30) * vacSaldoTotal;
-            
-            const totalLiquidacion = indemnizacionDespido + desahucio + pagoVacaciones;
-            
-            calculoLiquidacion = `\n- [SIMULADOR DE LIQUIDACIÓN AL DÍA DE HOY]\n` +
-              `  * Tiempo de servicio: ${anosServicio} años y fracción (Inicio: ${fechaInicio.toLocaleDateString()})\n` +
-              `  * Indemnización por Despido Intempestivo (Art. 188): $${indemnizacionDespido.toFixed(2)} (${mesesIndemnizacion} meses)\n` +
-              `  * Bonificación por Desahucio (Art. 185): $${desahucio.toFixed(2)}\n` +
-              `  * Vacaciones no gozadas (${vacSaldoTotal} días): $${pagoVacaciones.toFixed(2)}\n` +
-              `  * TOTAL ESTIMADO: $${totalLiquidacion.toFixed(2)}\n`;
+              let mesesIndemnizacion = anosCalculoDespido <= 3 ? 3 : anosCalculoDespido;
+              const indemnizacionDespido = sueldoBase * mesesIndemnizacion;
+              const desahucio = sueldoBase * 0.25 * (anosServicio > 0 ? anosServicio : 1);
+              const pagoVacaciones = (sueldoBase / 30) * vacSaldoTotal;
+              const totalLiquidacion = indemnizacionDespido + desahucio + pagoVacaciones;
+
+              respuestaDirect += `\nDESPIDO INTEMPESTIVO (ART. 188-185)\n` +
+                `===================================\n` +
+                `Años de servicio: ${anosServicio} años y fracción (Desde: ${fechaInicio.toLocaleDateString('es-EC')})\n` +
+                `Indemnización (Art. 188): ${mesesIndemnizacion} meses = $${indemnizacionDespido.toFixed(2)}\n` +
+                `Desahucio (Art. 185): $${desahucio.toFixed(2)}\n` +
+                `Vacaciones no gozadas: $${pagoVacaciones.toFixed(2)}\n` +
+                `TOTAL LIQUIDACIÓN: $${totalLiquidacion.toFixed(2)}`;
+            }
+
+            setMensajes(prev => prev.map(m => m.id === thinkingId ? { ...m, content: respuestaDirect } : m));
+            setAgentThinking(false);
+            return;
           }
 
           contextoEmpleado = `\n\n[INFORMACIÓN DEL EMPLEADO EN LA BASE DE DATOS:\n` +
@@ -306,8 +282,7 @@ export function useTTHHAgent(): UseTTHHAgentState & UseTTHHAgentActions {
             `- Asistencia (Movimientos): Registra ${totalAsistencias} marcaciones. Últimas: ${ultimasAsist || 'Ninguna'}.\n` +
             `- Rol de Pago: ${rolInfo}\n` +
             `- Vacaciones acumuladas: Tiene un saldo de ${vacSaldoTotal} días de vacaciones.\n` +
-            `- Sueldo base referencial: $${sueldoBase} USD]\n` +
-            calculoLiquidacion;
+            `- Sueldo base referencial: $${sueldoBase} USD]\n`;
         } else {
           contextoEmpleado = `\n\n[ATENCIÓN: No se encontró ningún empleado con la cédula ${cedula} en la base de datos local. Por favor, informa de esto cordialmente al usuario y oriéntalo legalmente]`;
         }
@@ -317,8 +292,7 @@ export function useTTHHAgent(): UseTTHHAgentState & UseTTHHAgentActions {
     }
 
     const systemPrompt = getSystemPromptTTHH(rolActivo) + 
-      `\n\nIMPORTANTE: Sé directo, natural y no repitas la misma frase varias veces. ` +
-      `Al finalizar tu respuesta, despídete cordialmente diciendo únicamente 'Gracias por usar el bot.' de forma natural.` +
+      `\n\nAl finalizar tu respuesta, despídete cordialmente diciendo únicamente 'Gracias por usar el bot.' de forma natural.` +
       (contextoEmpleado ? `\n\nContexto actual de la consulta:${contextoEmpleado}` : "");
 
     const mensajesOllama: OllamaMessage[] = [
@@ -338,7 +312,7 @@ export function useTTHHAgent(): UseTTHHAgentState & UseTTHHAgentActions {
           respuestaCompleta += delta;
           actualizarUltimoMensaje(delta);
         },
-        { signal: abortControllerRef.current.signal, temperature: 0.6, top_p: 0.9 }
+        { signal: abortControllerRef.current.signal, temperature: 0.1 }
       );
 
       historialRef.current = [
