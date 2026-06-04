@@ -29,4 +29,13 @@ router.post('/descontar', verificarToken, restringirA('JEFE_INVENTARIO', 'OPERAT
 // Operación masiva hacia Firebase: exclusivo para el Jefe de Inventario.
 router.get('/sincronizar-cloud', verificarToken, restringirA('JEFE_INVENTARIO'), inventarioController.sincronizarCloud);
 
+// ─── Saga de stock para api-ventas ───────────────────────────────────────────
+// Cualquier servicio autenticado puede consultar variantes y gestionar reservas.
+router.get('/variantes/:id',    verificarToken, inventarioController.getVariante);
+router.post('/stock/verificar', verificarToken, inventarioController.verificarStock);
+router.post('/stock/reservar',  verificarToken, inventarioController.reservarStock);
+router.post('/stock/confirmar', verificarToken, inventarioController.confirmarReserva);
+router.post('/stock/liberar',   verificarToken, inventarioController.liberarReserva);
+router.post('/stock/reponer',   verificarToken, inventarioController.reponerStock);
+
 module.exports = router;

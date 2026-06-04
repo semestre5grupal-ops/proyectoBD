@@ -23,6 +23,7 @@ app.use('/api/cuotas',               require('./routes/cuotaRoutes'));
 app.use('/api/interacciones',        require('./routes/interaccionRoutes'));
 app.use('/api/logistica',            require('./routes/logisticaRoutes'));
 app.use('/api/productosxlogistica',  require('./routes/productoxlogisticaRoutes'));
+app.use('/api/reportes',             require('./routes/reporteRoutes'));
 
 const PORT = process.env.PORT || 3003;
 app.listen(PORT, () => {
