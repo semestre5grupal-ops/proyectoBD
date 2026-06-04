@@ -2,7 +2,7 @@
  * use-agent.ts
  * ------------
  * HOOK ORQUESTADOR DEL AGENTE ERP
- * Proyecto RDA3 · Módulo de Compras (Paul)
+ * Proyecto RDA3 · Módulo de Compras (Liz)
  *
  * Este hook implementa el pipeline completo:
  *
@@ -284,7 +284,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
 
   // ── Refs para control de streaming, tarea pendiente y reconocimiento de voz ─────
   const abortControllerRef = useRef<AbortController | null>(null);
-  const recognitionRef     = useRef<SpeechRecognition | null>(null);
+  const recognitionRef     = useRef<any>(null);
   const historialRef       = useRef<OllamaMessage[]>([]); // historial de conversación
   /**
    * pendingTaskRef: referencia a la TareaCompras cuya TaskCard está visible
@@ -749,6 +749,23 @@ export function useAgent(): UseAgentState & UseAgentActions {
     });
   }, [agregarMensaje]);
 
+  /**
+   * Inyecta una TaskCard en el chat, típicamente usada al cargar
+   * las notificaciones pendientes recuperadas del backend.
+   */
+  const inyectarTaskCardAgente = useCallback((tareaBase: Omit<TareaCompras, 'id' | 'timestamp' | 'confirmacion_requerida'> & { id?: string }): void => {
+    const tareaCompleta: TareaCompras = {
+      ...tareaBase,
+      id: tareaBase.id ?? uuidv4(),
+      timestamp: new Date().toISOString(),
+      confirmacion_requerida: true,
+    };
+    agregarMensaje(crearMensajeTarea(tareaCompleta));
+    if (tareaCompleta.estado === 'pendiente') {
+      pendingTaskRef.current = tareaCompleta;
+    }
+  }, [agregarMensaje]);
+
   return {
     // State
     mensajes,
@@ -765,6 +782,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
     cancelarGeneracion,
     limpiarError,
     inyectarMensajeAgente,
+    inyectarTaskCardAgente,
   };
 }
 

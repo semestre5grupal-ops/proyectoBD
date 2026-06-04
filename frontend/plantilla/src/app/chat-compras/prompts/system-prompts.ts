@@ -2,7 +2,7 @@
  * system-prompts.ts
  * ------------------
  * SYSTEM PROMPTS DEL AGENTE ERP — v3 (alineación estricta por rol)
- * Proyecto RDA3 · Módulo de Compras (Paul)
+ * Proyecto RDA3 · Módulo de Compras (Liz)
  *
  * FLUJO DE NEGOCIO FINAL:
  *

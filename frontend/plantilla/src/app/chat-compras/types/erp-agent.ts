@@ -2,7 +2,7 @@
  * erp-agent.ts
  * ------------
  * TIPOS DEL DOMINIO — Agentic ERP Task Center
- * Proyecto RDA3 · Módulo de Compras (Paul)
+ * Proyecto RDA3 · Módulo de Compras (Liz)
  *
  * Estas interfaces son el contrato entre:
  *   - La respuesta JSON de Ollama (el LLM debe producir este esquema)

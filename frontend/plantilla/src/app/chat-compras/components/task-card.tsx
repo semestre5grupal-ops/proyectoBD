@@ -4,7 +4,7 @@
  * task-card.tsx
  * -------------
  * COMPONENTE DE TARJETA DE TAREA ERP
- * Proyecto RDA3 · Módulo de Compras (Paul)
+ * Proyecto RDA3 · Módulo de Compras (Liz)
  *
  * Se renderiza dentro de message-list.tsx cuando un mensaje tiene
  * `type === 'task_card'`. Muestra la instrucción generada por la IA
