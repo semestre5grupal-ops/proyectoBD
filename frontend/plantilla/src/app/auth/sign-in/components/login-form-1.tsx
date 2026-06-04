@@ -67,10 +67,7 @@ export function LoginForm1({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader className="text-center">
-          <CardTitle className="text-xl">Bienvenido a Talento Humano</CardTitle>
-          <CardDescription>
-            Ingresa tu correo institucional y contraseña
-          </CardDescription>
+          <CardTitle className="text-xl">Bienvenido</CardTitle>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -122,9 +119,6 @@ export function LoginForm1({
           </Form>
         </CardContent>
       </Card>
-      <div className="text-muted-foreground text-center text-xs">
-        Talento Humano API - SSO Centralizado
-      </div>
     </div>
   )
 }
