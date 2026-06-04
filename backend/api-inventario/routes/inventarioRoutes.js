@@ -34,8 +34,26 @@ router.put('/ajustes/:id/aprobar', verificarToken, restringirA('JEFE_INVENTARIO'
 // Crear Cabecera Pendiente (Pre-Ajuste): JEFE, OPERATIVO o AUXILIAR
 router.post('/ajustes/pendiente', verificarToken, restringirA('JEFE_INVENTARIO', 'OPERATIVO_INVENTARIO', 'AUXILIAR_INVENTARIO'), inventarioController.crearCabeceraPendiente);
 
+// Aprobar Recepción (RPC): JEFE u OPERATIVO
+router.put('/recepciones/:id/aprobar', verificarToken, restringirA('JEFE_INVENTARIO', 'OPERATIVO_INVENTARIO'), inventarioController.aprobarRecepcion);
+
+// Aprobar Entrega (RPC): JEFE u OPERATIVO
+router.put('/entregas/:id/aprobar', verificarToken, restringirA('JEFE_INVENTARIO', 'OPERATIVO_INVENTARIO'), inventarioController.aprobarEntrega);
+
 // ─── SINCRONIZACIÓN CLOUD ─────────────────────────────────────────────────────
 // Operación masiva hacia Firebase: exclusivo para el Jefe de Inventario.
 router.get('/sincronizar-cloud', verificarToken, restringirA('JEFE_INVENTARIO'), inventarioController.sincronizarCloud);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INTEGRACIÓN CON OTROS MÓDULOS — Sin restricción de rol extra
+// Cualquier usuario autenticado con JWT válido puede notificar recepciones y
+// entregas (Compras / Ventas usan sus propios tokens del sistema central).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// POST /api/inventario/recepciones — Compras (Liz) notifica llegada de OC
+router.post('/recepciones', verificarToken, inventarioController.registrarRecepcion);
+
+// POST /api/inventario/entregas — Ventas (Gabo) notifica salida de mercadería
+router.post('/entregas', verificarToken, inventarioController.registrarEntrega);
 
 module.exports = router;

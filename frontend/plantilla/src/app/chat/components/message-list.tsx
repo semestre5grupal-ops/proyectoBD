@@ -24,7 +24,7 @@ interface MessageListProps {
   users: User[]
   currentUserId?: string
   /** Callback para confirmar una TareaInventario pendiente */
-  onConfirmarTarea?: (tareaId: string) => Promise<void>
+  onConfirmarTarea?: (tareaId: string, cantidadReal?: number) => Promise<void>
   /** Callback para rechazar una TareaInventario pendiente */
   onRechazarTarea?: (tareaId: string) => void
 }

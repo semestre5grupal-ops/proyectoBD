@@ -176,6 +176,154 @@ const InventarioModel = {
         }
 
         return data;
+    },
+
+    aprobarRecepcionFisica: async (idCabecera, idBodega, idVariante, cantidadReal, usuario, periodo) => {
+        const p_periodo = periodo || new Date().toISOString().slice(0, 7);
+        const { data, error } = await supabase.rpc('fn_aprobar_recepcion_inventario', {
+            p_id_cabecera: Number(idCabecera),
+            p_id_bodega: Number(idBodega),
+            p_id_variante: Number(idVariante),
+            p_cantidad_real: Number(cantidadReal),
+            p_usuario: usuario,
+            p_periodo: p_periodo
+        });
+        if (error) {
+            console.error('🔥 ERROR SUPABASE RPC [fn_aprobar_recepcion_inventario]:', error);
+            throw new Error(error.message);
+        }
+        return data;
+    },
+
+    aprobarEntregaFisica: async (idCabecera, idBodega, idVariante, cantidadReal, usuario, periodo) => {
+        const p_periodo = periodo || new Date().toISOString().slice(0, 7);
+        const { data, error } = await supabase.rpc('fn_aprobar_entrega_inventario', {
+            p_id_cabecera: Number(idCabecera),
+            p_id_bodega: Number(idBodega),
+            p_id_variante: Number(idVariante),
+            p_cantidad_real: Number(cantidadReal),
+            p_usuario: usuario,
+            p_periodo: p_periodo
+        });
+        if (error) {
+            console.error('🔥 ERROR SUPABASE RPC [fn_aprobar_entrega_inventario]:', error);
+            throw new Error(error.message);
+        }
+        return data;
+    },
+
+    /**
+     * Crea la cabecera en 'recepciones' (estado PEN) y el detalle en 'proxrec'.
+     * Retorna la fila completa de la cabecera insertada.
+     *
+     * @param {object} params
+     * @param {number|string} params.idCompra           — ID externo de la OC de Compras
+     * @param {number}        params.idBodega
+     * @param {string}        params.descripcion
+     * @param {string}        params.usuarioResponsable
+     * @param {Array<{id_variante:number, pxo_cantidad:number}>} params.productos
+     */
+    registrarRecepcionConDetalle: async ({ idCompra, idBodega, descripcion, usuarioResponsable, productos }) => {
+        // 1. Cabecera en 'recepciones'
+        const { data: cabecera, error: errCab } = await supabase
+            .from('recepciones')
+            .insert({
+                id_bodega:        Number(idBodega),
+                rec_descripcion:  descripcion || 'Recepción registrada por Compras',
+                rec_fechahora:    new Date().toISOString(),
+                rec_num_productos: productos.length,
+                usu_responsable:  usuarioResponsable,
+                rec_estado:       'PEN',
+            })
+            .select()
+            .single();
+
+        if (errCab) {
+            console.error('🔥 ERROR SUPABASE [registrarRecepcionConDetalle - recepciones]:', errCab);
+            throw new Error(errCab.message);
+        }
+
+        const idCabeceraGenerada = cabecera.id_recepcion ?? cabecera.id ?? idCompra;
+
+        // 2. Detalle en 'proxrec' (un INSERT por producto)
+        // pxr_diferencia y pxr_motivo_diferencia son NOT NULL en la BD → inicializados en 0 / texto vacío
+        const filas = productos.map((p) => ({
+            id_recepcion:              Number(idCabeceraGenerada),
+            id_variante:               Number(p.id_variante),
+            pxr_cantidad_solicitada:   Number(p.pxo_cantidad),
+            pxr_qty_recibida:          0,
+            pxr_diferencia:            0,
+            pxr_motivo_diferencia:     'Sin observaciones',
+            pxr_estado:                'PEN',
+        }));
+
+        const { error: errDet } = await supabase
+            .from('proxrec')
+            .insert(filas);
+
+        if (errDet) {
+            console.error('🔥 ERROR SUPABASE [registrarRecepcionConDetalle - proxrec]:', errDet);
+            throw new Error(errDet.message);
+        }
+
+        return { idCabecera: idCabeceraGenerada, cabecera };
+    },
+
+    /**
+     * Crea la cabecera en 'entregas' (estado PEN) y el detalle en 'proxent'.
+     * Retorna la fila completa de la cabecera insertada.
+     *
+     * @param {object} params
+     * @param {number|string} params.idDocumento         — ID externo del documento de Ventas
+     * @param {number}        params.idBodega
+     * @param {string}        params.descripcion
+     * @param {string}        params.usuarioResponsable
+     * @param {Array<{id_variante:number, pxd_cantidad:number}>} params.productos
+     */
+    registrarEntregaConDetalle: async ({ idDocumento, idBodega, descripcion, usuarioResponsable, productos }) => {
+        // 1. Cabecera en 'entregas'
+        const { data: cabecera, error: errCab } = await supabase
+            .from('entregas')
+            .insert({
+                id_bodega:        Number(idBodega),
+                ent_descripcion:  descripcion || 'Entrega registrada por Ventas',
+                ent_fechahora_:   new Date().toISOString(),
+                ent_num_productos: productos.length,
+                usu_responsable:  usuarioResponsable,
+                ent_estado:       'PEN',
+            })
+            .select()
+            .single();
+
+        if (errCab) {
+            console.error('🔥 ERROR SUPABASE [registrarEntregaConDetalle - entregas]:', errCab);
+            throw new Error(errCab.message);
+        }
+
+        const idCabeceraGenerada = cabecera.id_entrega ?? cabecera.id ?? idDocumento;
+
+        // 2. Detalle en 'proxent' (un INSERT por producto)
+        // pxe_diferencia y pxe_motivo_diferencia son NOT NULL en la BD → inicializados en 0 / texto vacío
+        const filas = productos.map((p) => ({
+            id_entrega:              Number(idCabeceraGenerada),
+            id_variante:             Number(p.id_variante),
+            pxe_cantidad_facturada:  Number(p.pxd_cantidad),
+            pxe_qty_entregada:       0,
+            pxe_diferencia:          0,
+            pxe_motivo_diferencia:   'Sin observaciones',
+            pxe_estado:              'PEN',
+        }));
+
+        const { error: errDet } = await supabase
+            .from('proxent')
+            .insert(filas);
+
+        if (errDet) {
+            console.error('🔥 ERROR SUPABASE [registrarEntregaConDetalle - proxent]:', errDet);
+            throw new Error(errDet.message);
+        }
+
+        return { idCabecera: idCabeceraGenerada, cabecera };
     }
 };
 

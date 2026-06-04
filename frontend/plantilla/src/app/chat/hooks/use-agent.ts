@@ -41,6 +41,8 @@ import {
   marcarNotificacionEjecutada,
   aprobarAjusteCabecera,
   crearAjusteCabeceraPendiente,
+  aprobarRecepcionCabecera,
+  aprobarEntregaCabecera,
 } from '@/services/inventarioService';
 import {
   SYSTEM_PROMPTS,
@@ -80,7 +82,7 @@ export interface UseAgentActions {
   /** Activa/desactiva el reconocimiento de voz */
   toggleVoz: () => void;
   /** Confirma la ejecución de una TareaInventario pendiente */
-  confirmarTarea: (tareaId: string) => Promise<void>;
+  confirmarTarea: (tareaId: string, cantidadReal?: number) => Promise<void>;
   /** Rechaza una TareaInventario pendiente */
   rechazarTarea: (tareaId: string) => void;
   /** Cancela la generación en curso */
@@ -260,8 +262,8 @@ export function emitirVoz(texto: string): void {
   // buscar es-ES como segunda opción antes de dejar que el SO elija.
   const voces = window.speechSynthesis.getVoices();
   if (voces.length > 0) {
-    const vozEC  = voces.find(v => v.lang === 'es-EC');
-    const vozES  = voces.find(v => v.lang === 'es-ES');
+    const vozEC = voces.find(v => v.lang === 'es-EC');
+    const vozES = voces.find(v => v.lang === 'es-ES');
     const vozGen = voces.find(v => v.lang.startsWith('es'));
     utterance.voice = vozEC ?? vozES ?? vozGen ?? null;
   }
@@ -281,14 +283,14 @@ export function useAgent(): UseAgentState & UseAgentActions {
   const [mensajes, setMensajes] = useState<MensajeERP[]>([]);
   const [agentThinking, setAgentThinking] = useState(false);
   const [agentError, setAgentError] = useState<string | null>(null);
-  const [rolActivo]     = useState<RolInventario>(sesion.rol);
+  const [rolActivo] = useState<RolInventario>(sesion.rol);
   const [nombreUsuario] = useState<string>(sesion.nombre);
   const [escuchando, setEscuchando] = useState(false);
 
   // ── Refs para control de streaming, tarea pendiente y reconocimiento de voz ─────
   const abortControllerRef = useRef<AbortController | null>(null);
-  const recognitionRef     = useRef<SpeechRecognition | null>(null);
-  const historialRef       = useRef<OllamaMessage[]>([]); // historial de conversación
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const historialRef = useRef<OllamaMessage[]>([]); // historial de conversación
   /**
    * pendingTaskRef: referencia a la TareaInventario cuya TaskCard está visible
    * y esperando acción humana. Se usa para el control de confirmación por voz.
@@ -360,47 +362,37 @@ export function useAgent(): UseAgentState & UseAgentActions {
         }
 
         case 'CONFIRMAR_RECEPCION': {
-          console.log("PAYLOAD A EJECUTAR:", payload);
-          
+          console.log("PAYLOAD A EJECUTAR (CONFIRMAR_RECEPCION):", payload);
           const p = payload as Record<string, any>;
-          const idVariante = Number(p.idVariante || p.id_variante || 1);
-          const idBodega = Number(p.idBodega || p.id_bodega || 1); // Si es null, fuerza la Bodega 1 por defecto
-          const cantidadAbsoluta = Math.abs(Number(p.cantidad || p.cant || 0));
-          const descripcion = p.descripcion || "Ajuste procesado por el Agente de Voz";
-          const usuario = p.usuario || nombreUsuario;
+          const idCabecera = p.idCabecera || p.id_cabecera;
 
-          console.log("🚀 Disparando actualización de stock local para variante:", idVariante);
-
-          // Ejecutar inventario real (el Jefe autoriza un ajuste que viene de la tarjeta, 
-          // o el Operativo confirma recepción y se suma al stock).
-          const cantidadOriginal = Number(p.cantidad || p.cant || 0);
-          
-          if (cantidadOriginal >= 0) {
-            resultado = await ingresarStock({
-              idVariante,
-              cantidad: cantidadAbsoluta,
-              idBodega,
-              descripcion,
-              usuario,
-            });
-          } else {
-            // cantidad es menor a 0
-            resultado = await descontarStock(
-              idVariante, 
-              cantidadAbsoluta
-            );
+          if (!idCabecera) {
+            throw new Error("No se encontró el idCabecera en el payload para confirmar la recepción.");
           }
+
+          const idVariante = Number(p.idVariante || p.id_variante || 1);
+          const idBodega = Number(p.idBodega || p.id_bodega || 1);
+          const cantidadReal = Math.abs(Number(p.cantidad || p.cant || 0));
+
+          console.log("🚀 Disparando RPC de recepción para cabecera:", idCabecera);
+
+          resultado = await aprobarRecepcionCabecera(idCabecera, {
+            ...p,
+            idBodega,
+            idVariante,
+            cantidadReal,
+          });
           break;
         }
 
         case 'AUTORIZAR_AJUSTE': {
           console.log("PAYLOAD A EJECUTAR (AUTORIZAR_AJUSTE):", payload);
-          
+
           const p = payload as Record<string, any>;
           const idCabecera = p.idCabecera || p.id_cabecera;
-          
+
           if (!idCabecera) {
-             throw new Error("No se encontró el idCabecera en el payload para autorizar el ajuste.");
+            throw new Error("No se encontró el idCabecera en el payload para autorizar el ajuste.");
           }
 
           const idVariante = Number(p.idVariante || p.id_variante || 1);
@@ -414,6 +406,30 @@ export function useAgent(): UseAgentState & UseAgentActions {
             idBodega,
             idVariante,
             cantidad: cantidadOriginal
+          });
+          break;
+        }
+
+        case 'CONFIRMAR_ENTREGA': {
+          console.log("PAYLOAD A EJECUTAR (CONFIRMAR_ENTREGA):", payload);
+          const p = payload as Record<string, any>;
+          const idCabecera = p.idCabecera || p.id_cabecera;
+
+          if (!idCabecera) {
+            throw new Error("No se encontró el idCabecera en el payload para confirmar la entrega.");
+          }
+
+          const idVariante = Number(p.idVariante || p.id_variante || 1);
+          const idBodega = Number(p.idBodega || p.id_bodega || 1);
+          const cantidadReal = Math.abs(Number(p.cantidad || p.cant || 0));
+
+          console.log("🚀 Disparando RPC de entrega para cabecera:", idCabecera);
+
+          resultado = await aprobarEntregaCabecera(idCabecera, {
+            ...p,
+            idBodega,
+            idVariante,
+            cantidadReal,
           });
           break;
         }
@@ -462,7 +478,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
       // ÚNICAMENTE si la función de stock de arriba se ejecutó con éxito (Response 200).
       // Como estamos dentro de un try, si ingresarStock/descontarStock fallaron,
       // el flujo habría saltado al catch y esta línea no se ejecutaría.
-      if (tarea.id.length !== 36) { // Si no es un UUID autogenerado localmente (sino de la BD)
+      if (tarea.id.length === 36) { // Si no es un UUID autogenerado localmente (sino de la BD)
         try {
           await marcarNotificacionEjecutada(tarea.id);
         } catch (err) {
@@ -475,10 +491,10 @@ export function useAgent(): UseAgentState & UseAgentActions {
         prev.map(m =>
           m.tarea?.id === tarea.id
             ? {
-                ...m,
-                content: `✅ Ejecutado: ${tarea.mensaje_usuario}`,
-                tarea: { ...m.tarea, estado: 'ejecutada', resultado_api: resultado },
-              }
+              ...m,
+              content: `✅ Ejecutado: ${tarea.mensaje_usuario}`,
+              tarea: { ...m.tarea, estado: 'ejecutada', resultado_api: resultado },
+            }
             : m
         )
       );
@@ -581,7 +597,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
         ...historialRef.current,
         { role: 'user' as const, content: texto },
         { role: 'assistant' as const, content: respuestaCompleta },
-      ].slice(-20); // mantener máximo 20 mensajes de historial (10 turnos)
+      ].slice(-20);
 
       // 6. Parsear la respuesta y crear TareaInventario
       const tarea = parseAgentResponse(
@@ -591,11 +607,21 @@ export function useAgent(): UseAgentState & UseAgentActions {
         nombreUsuario
       );
 
-      // 7a. Si es INFORMATIVO → la burbuja de texto ya tiene la respuesta, no añadir TaskCard
+      // 6b. INTERCEPTOR DE RESPUESTA — Extraer mensaje_usuario del JSON para mostrar en UI
+      // Si Ollama devuelvió el JSON crudo visible en la burbuja, lo reemplazamos
+      // por solo el texto en lenguaje natural del campo 'mensaje_usuario'.
+      const textoParaUI = tarea.mensaje_usuario || respuestaCompleta;
+      setMensajes(prev =>
+        prev.map(m =>
+          m.id === thinkingId
+            ? { ...m, content: textoParaUI }
+            : m
+        )
+      );
+
+      // 7a. Si es INFORMATIVO → la burbuja ya tiene el texto limpio, leer en voz y salir
       if (tarea.accion === 'INFORMATIVO') {
-        // La respuesta ya está visible en la burbuja de streaming
-        // 🔊 Leer el mensaje en voz alta automáticamente
-        emitirVoz(respuestaCompleta);
+        emitirVoz(textoParaUI);
         setAgentThinking(false);
         return;
       }
@@ -612,23 +638,43 @@ export function useAgent(): UseAgentState & UseAgentActions {
       // Si la tarea va dirigida a otro rol, persistir en Supabase vía POST /tareas
       // y mostrar solo un mensaje informativo (sin botones de Confirmar).
       if (tarea.rol_destino && tarea.rol_destino !== rolActivo) {
-        
-        // a.1) Si es AUTORIZAR_AJUSTE (El Auxiliar dicta el ajuste), creamos la cabecera pendiente primero
+
+        // SANITIZACIÓN ANTI-ALUCINACIONES: corregir la acción si el modelo confundió
+        // CONFIRMAR_ENTREGA o CONFIRMAR_RECEPCION con otra acción genérica.
+        const payloadSanitize = tarea.payload as Record<string, any>;
+        if (
+          tarea.accion !== 'CONFIRMAR_ENTREGA' &&
+          tarea.accion !== 'CONFIRMAR_RECEPCION' &&
+          (payloadSanitize.idCabecera != null ||
+            (tarea.instruccion_original ?? '').toLowerCase().includes('entrega'))
+        ) {
+          const instrLower = (tarea.instruccion_original ?? '').toLowerCase();
+          if (instrLower.includes('entrega') || instrLower.includes('venta') || instrLower.includes('despacho')) {
+            (tarea as any).accion = 'CONFIRMAR_ENTREGA';
+          } else if (instrLower.includes('recepcion') || instrLower.includes('recepción') || instrLower.includes('compra') || instrLower.includes('llegada')) {
+            (tarea as any).accion = 'CONFIRMAR_RECEPCION';
+          }
+        }
+
+        // a.1) Pre-procesamiento por tipo de acción antes de delegar
         if (tarea.accion === 'AUTORIZAR_AJUSTE') {
+          // AUTORIZAR_AJUSTE: el Auxiliar dicta el ajuste → crear cabecera pendiente primero
           try {
             const payloadRecord = tarea.payload as Record<string, any>;
             const resCabecera = await crearAjusteCabeceraPendiente(payloadRecord);
             if (resCabecera.success && resCabecera.id != null) {
-               payloadRecord.idCabecera = resCabecera.id;
-               tarea.payload = payloadRecord;
+              payloadRecord.idCabecera = resCabecera.id;
+              tarea.payload = payloadRecord;
             } else {
-               throw new Error(resCabecera.message || "Fallo desconocido al crear cabecera pendiente.");
+              throw new Error(resCabecera.message || "Fallo desconocido al crear cabecera pendiente.");
             }
-          } catch(err) {
+          } catch (err) {
             console.error('🔥 ERROR: No se pudo crear la cabecera pendiente. Abortando delegación:', err);
-            throw err; // Lanza el error para evitar que se cree la notificación sin UUID
+            throw err;
           }
         }
+        // CONFIRMAR_RECEPCION / CONFIRMAR_ENTREGA: el ID de cabecera ya viene del usuario externo
+        // → NO crear cabecera previa. Pasar payload directamente a crearNotificacionTarea.
 
         // a) Persistir la notificación en el backend (fire-and-forget amigable)
         crearNotificacionTarea({
@@ -700,11 +746,16 @@ export function useAgent(): UseAgentState & UseAgentActions {
   // ACCIÓN: Confirmar una tarea pendiente (botón en TaskCard)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const confirmarTarea = useCallback(async (tareaId: string): Promise<void> => {
+  const confirmarTarea = useCallback(async (tareaId: string, cantidadReal?: number): Promise<void> => {
     const mensaje = mensajes.find(m => m.tarea?.id === tareaId);
     if (!mensaje?.tarea) return;
 
-    const tarea: TareaInventario = { ...mensaje.tarea, estado: 'confirmada' };
+    const payloadActualizado = { ...mensaje.tarea.payload };
+    if (cantidadReal !== undefined) {
+      payloadActualizado.cantidad = cantidadReal;
+    }
+
+    const tarea: TareaInventario = { ...mensaje.tarea, estado: 'confirmada', payload: payloadActualizado };
     setMensajes(prev =>
       prev.map(m =>
         m.tarea?.id === tareaId ? { ...m, tarea } : m
@@ -722,10 +773,10 @@ export function useAgent(): UseAgentState & UseAgentActions {
       prev.map(m =>
         m.tarea?.id === tareaId
           ? {
-              ...m,
-              content: `🚫 Tarea cancelada: ${m.tarea!.mensaje_usuario}`,
-              tarea: { ...m.tarea!, estado: 'rechazada' },
-            }
+            ...m,
+            content: `🚫 Tarea cancelada: ${m.tarea!.mensaje_usuario}`,
+            tarea: { ...m.tarea!, estado: 'rechazada' },
+          }
           : m
       )
     );
@@ -767,12 +818,12 @@ export function useAgent(): UseAgentState & UseAgentActions {
       // Si hay una TaskCard en estado 'pendiente', interceptar palabras clave
       // en lugar de enviar el transcript a Ollama.
       const tareaActiva = pendingTaskRef.current;
-      if (tareaActiva) {
+      if (tareaActiva && rolActivo === 'JEFE_INVENTARIO') {
         const palabrasConfirmar = ['sí', 'si', 'confirmar', 'confirmo', 'proceder', 'aceptar', 'ejecutar', 'ejecuto', 'procedo'];
-        const palabrasCancelar  = ['no', 'cancelar', 'cancelo', 'rechazar', 'rechazo', 'cancelado'];
+        const palabrasCancelar = ['no', 'cancelar', 'cancelo', 'rechazar', 'rechazo', 'cancelado'];
 
         const esConfirmacion = palabrasConfirmar.some(p => transcript.includes(p));
-        const esCancelacion  = palabrasCancelar.some(p  => transcript.includes(p));
+        const esCancelacion = palabrasCancelar.some(p => transcript.includes(p));
 
         if (esConfirmacion) {
           // Confirmación por voz: ejecutar tarea y limpiar pendingTaskRef
@@ -809,7 +860,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
 
     recognitionRef.current = recognition;
     recognition.start();
-  }, [escuchando, sendMessage, confirmarTarea, rechazarTarea]);
+  }, [escuchando, sendMessage, confirmarTarea, rechazarTarea, rolActivo]);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ACCIÓN: Cancelar generación en curso

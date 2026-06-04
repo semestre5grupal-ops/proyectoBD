@@ -67,6 +67,7 @@ import { StockCard } from "./components/StockCard";
 import { IngresarStockForm } from "./components/IngresarStockForm";
 import { SincronizarButton } from "./components/SincronizarButton";
 import { StockTable } from "./components/StockTable";
+import { ControlesGestion, type RolInventario } from "./components/ControlesGestion";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TIPOS DE ROL — Stub compatible con el SSO de Alejandro
@@ -609,6 +610,9 @@ export default function DashboardInventarioPage() {
   // Flag para saber si hay sesión real (oculta el selector manual en producción)
   const [hayTokenReal, setHayTokenReal] = useState<boolean>(false);
 
+  // ── Rol de Inventario (JEFE/AUXILIAR/OPERATIVO) leído del id_rol numérico del JWT ──
+  const [rolInventario, setRolInventario] = useState<RolInventario | null>(null);
+
   useEffect(() => {
     const token = localStorage.getItem("jwt_token");
     if (!token) return; // sin sesión: deja el stub activo
@@ -641,6 +645,13 @@ export default function DashboardInventarioPage() {
             : idRol === 2 ? "EMPLEADO_BODEGA"
             : "CLIENTE_VISITANTE";
       }
+
+      // ── Mapeo al sistema de roles del Agente IA (id_rol numérico) ──────────
+      // Acuerdo: 8 = Jefe, 9 = Auxiliar, 10 = Operativo
+      const idRolNum = Number(payload.id_rol);
+      if (idRolNum === 8) setRolInventario("JEFE_INVENTARIO");
+      else if (idRolNum === 9) setRolInventario("AUXILIAR_INVENTARIO");
+      else if (idRolNum === 10) setRolInventario("OPERATIVO_INVENTARIO");
 
       setUsuarioActivo({ nombre, rol });
       setHayTokenReal(true);
@@ -1023,6 +1034,31 @@ export default function DashboardInventarioPage() {
             </div>
           </div>
         </section>
+
+        {/* ══════════════════════════════════════════════════════════════════
+            SECCIÓN 4 — Controles de Gestión dinámicos por rol del Agente IA
+            Visible solo cuando el JWT indica id_rol 8, 9 o 10.
+            NOTA: No altera gráficos, consulta de variantes ni Firebase.
+        ═══════════════════════════════════════════════════════════════════ */}
+        {rolInventario && (
+          <>
+            <Separator />
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-semibold">Controles de Gestión</h3>
+                <Badge variant="outline" className="text-xs">
+                  {rolInventario === "JEFE_INVENTARIO" && "Jefe de Inventario"}
+                  {rolInventario === "AUXILIAR_INVENTARIO" && "Auxiliar de Inventario"}
+                  {rolInventario === "OPERATIVO_INVENTARIO" && "Operativo de Bodega"}
+                </Badge>
+              </div>
+              <ControlesGestion
+                rolActivo={rolInventario}
+                nombreUsuario={usuarioActivo.nombre}
+              />
+            </section>
+          </>
+        )}
 
       </div>
     </BaseLayout>

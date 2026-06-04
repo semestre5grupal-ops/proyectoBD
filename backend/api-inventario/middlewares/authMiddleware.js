@@ -40,11 +40,15 @@ const verificarToken = (req, res, next) => {
         console.log(JSON.stringify(decoded, null, 2));
         console.log("===========================================");
 
-        // Resolver rol_nombre desde id_rol numérico
-        // Number() asegura el cast correcto si JWT trae el id como string
-        decoded.rol_nombre = resolverRol(decoded.id_rol);
+        // Resolver rol_nombre desde id_rol numérico, o usar el rol si ya viene como string
+        if (decoded.rol && typeof decoded.rol === 'string') {
+            decoded.rol_nombre = decoded.rol;
+        } else {
+            // Number() asegura el cast correcto si JWT trae el id como string
+            decoded.rol_nombre = resolverRol(decoded.id_rol);
+        }
 
-        console.log(`[authMiddleware] id_rol=${decoded.id_rol} → rol_nombre='${decoded.rol_nombre}'`);
+        console.log(`[authMiddleware] id_rol=${decoded.id_rol} / rol=${decoded.rol} → rol_nombre='${decoded.rol_nombre}'`);
 
         req.usuarioAutenticado = decoded;
         next();

@@ -287,3 +287,32 @@ export async function crearAjusteCabeceraPendiente(
   );
 }
 
+/**
+ * Aprueba una recepción física invocando la RPC correspondiente.
+ *
+ * Endpoint: PUT /api/inventario/recepciones/:id/aprobar
+ */
+export async function aprobarRecepcionCabecera(
+  idCabecera: number | string,
+  payload: Record<string, any>
+): Promise<ApiBaseResponse> {
+  return apiFetch<ApiBaseResponse>(`/api/inventario/recepciones/${idCabecera}/aprobar`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Aprueba una entrega física invocando la RPC correspondiente.
+ *
+ * Endpoint: PUT /api/inventario/entregas/:id/aprobar
+ */
+export async function aprobarEntregaCabecera(
+  idCabecera: number | string,
+  payload: Record<string, any>
+): Promise<ApiBaseResponse> {
+  return apiFetch<ApiBaseResponse>(`/api/inventario/entregas/${idCabecera}/aprobar`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}

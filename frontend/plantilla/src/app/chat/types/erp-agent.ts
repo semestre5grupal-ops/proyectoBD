@@ -44,7 +44,8 @@ export type AccionInventario =
   | 'INFORMATIVO'         // La IA pide más datos o responde sin ejecutar
   | 'CONFIRMAR_RECEPCION' // OPERATIVO: confirma haber recibido una tarea del Jefe
   | 'CREAR_PRODUCTO'      // JEFE: delega ingreso de mercancía al OPERATIVO
-  | 'AUTORIZAR_AJUSTE';   // JEFE: autoriza un ajuste de stock manual
+  | 'AUTORIZAR_AJUSTE'   // JEFE: autoriza un ajuste de stock manual
+  | 'CONFIRMAR_ENTREGA'; // ← AÑADE ESTA LÍNEA
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PAYLOAD — Datos de ejecución para inventarioService
@@ -61,6 +62,8 @@ export interface PayloadInventario {
   idBodega?: number;
   descripcion?: string;
   usuario?: string;
+  idCabecera?: number;
+  cantidadEsperada?: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -186,6 +189,7 @@ export const PERMISOS_POR_ROL: Record<RolInventario, AccionInventario[]> = {
     'CONSULTAR',
     'SINCRONIZAR',
     'INFORMATIVO',
+    'CONFIRMAR_ENTREGA',
   ],
   AUXILIAR_INVENTARIO: [
     'INGRESAR_STOCK',
@@ -194,12 +198,14 @@ export const PERMISOS_POR_ROL: Record<RolInventario, AccionInventario[]> = {
     'INFORMATIVO',
   ],
   /**
-   * OPERATIVO_INVENTARIO: Recibe tareas del Jefe y ejecuta el stock real al confirmar.
-   * INGRESAR_STOCK se permite aqui para que ejecutarTarea() pueda llamar a ingresarStock()
-   * cuando el operativo confirma la recepcion fisica.
+   * OPERATIVO_INVENTARIO: Recibe y confirma entregas (Ventas) y recepciones (Compras).
+   * CONFIRMAR_RECEPCION: Para recepciones de Compras.
+   * CONFIRMAR_ENTREGA: Para despachos de Ventas.
+   * INGRESAR_STOCK: Fallback para confirmar stock directamente si no hay idCabecera.
    */
   OPERATIVO_INVENTARIO: [
     'CONFIRMAR_RECEPCION',
+    'CONFIRMAR_ENTREGA',
     'INGRESAR_STOCK',
     'INFORMATIVO',
   ],

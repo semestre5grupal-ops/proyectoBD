@@ -1,5 +1,14 @@
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
+const jwt = require('jsonwebtoken');
+// Generamos un token simulando que eres un usuario JEFE_INVENTARIO o ADMIN
+const tokenDePrueba = jwt.sign(
+    { id_usuario: 999, rol: 'ADMIN' }, // Rol autorizado en tus rutas
+    process.env.JWT_SECRET || 'clave_secreta_local',
+    { expiresIn: '24h' }
+);
+console.log('🔑 TU TOKEN DE PRUEBA PARA THUNDER CLIENT:\nBearer ' + tokenDePrueba);
+
 
 console.log("🔍 Inicializando cliente HTTP de Supabase...");
 

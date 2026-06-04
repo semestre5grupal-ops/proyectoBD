@@ -133,6 +133,14 @@ const ACCION_CONFIG: Record<AccionInventario, AccionConfig> = {
     colorBadge: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30",
     colorIcono: "text-amber-500",
   },
+  CONFIRMAR_ENTREGA: {
+    label: "Confirmar Entrega a Cliente",
+    labelCorto: "ENTREGA",
+    Icon: ArrowUpCircle,
+    colorBorder: "border-orange-500/40 dark:border-orange-500/30",
+    colorBadge: "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30",
+    colorIcono: "text-orange-500",
+  },
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -164,14 +172,23 @@ function FilaDato({
 
 interface TaskCardProps {
   tarea: TareaInventario
-  onConfirmar: (tareaId: string) => Promise<void>
+  onConfirmar: (tareaId: string, cantidadReal?: number) => Promise<void>
   onRechazar: (tareaId: string) => void
 }
 
 export function TaskCard({ tarea, onConfirmar, onRechazar }: TaskCardProps) {
   const [procesando, setProcesando] = useState(false)
+  const [cantidadReal, setCantidadReal] = useState<number>(Number(tarea.payload?.cantidad || 0))
 
-  const cfg = ACCION_CONFIG[tarea.accion]
+  const accionNombre = tarea?.accion || "DESCONOCIDO";
+  const cfg = ACCION_CONFIG[accionNombre as AccionInventario] || {
+    label: `Acción no reconocida: ${accionNombre}`,
+    labelCorto: "ERROR",
+    Icon: Info,
+    colorBorder: "border-destructive/40",
+    colorBadge: "bg-destructive/10 text-destructive border-destructive/30",
+    colorIcono: "text-destructive",
+  }
   const { Icon: AccionIcon } = cfg
 
   const esFinalizado =
@@ -181,9 +198,15 @@ export function TaskCard({ tarea, onConfirmar, onRechazar }: TaskCardProps) {
 
   const handleConfirmar = async () => {
     if (procesando || esFinalizado) return
+    
+    if (cantidadReal < 0 || isNaN(cantidadReal)) {
+      alert("La cantidad real no puede ser negativa ni estar vacía.")
+      return
+    }
+
     setProcesando(true)
     try {
-      await onConfirmar(tarea.id)
+      await onConfirmar(tarea.id, cantidadReal)
     } finally {
       setProcesando(false)
     }
@@ -282,6 +305,29 @@ export function TaskCard({ tarea, onConfirmar, onRechazar }: TaskCardProps) {
               />
             </div>
           </>
+        )}
+
+        {/* Input numérico para Recepciones/Entregas (Solo si no ha finalizado) */}
+        {!esFinalizado && (tarea.accion === 'CONFIRMAR_RECEPCION' || tarea.accion === 'CONFIRMAR_ENTREGA') && (
+          <div className="pt-2">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Unidades Reales:
+              </label>
+              {tarea.payload?.cantidadEsperada != null && (
+                <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                  Cantidad sugerida por el documento: {tarea.payload.cantidadEsperada} unidades
+                </span>
+              )}
+            </div>
+            <input
+              type="number"
+              min="0"
+              value={cantidadReal}
+              onChange={(e) => setCantidadReal(e.target.value === '' ? 0 : Number(e.target.value))}
+              className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </div>
         )}
 
         {/* Indicador de estado finalizado */}

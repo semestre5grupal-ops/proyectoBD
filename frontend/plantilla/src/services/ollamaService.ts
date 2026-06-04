@@ -23,7 +23,7 @@ const OLLAMA_ENDPOINT = '/ollama/api/chat';
 
 // ─── Modelo por defecto: lee la variable de entorno o usa llama3.2 ────────────
 const DEFAULT_MODEL =
-  (import.meta.env.VITE_OLLAMA_MODEL as string | undefined) ?? 'llama3.2';
+  (import.meta.env.VITE_OLLAMA_MODEL as string | undefined) ?? 'qwen2.5:1.5b';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TIPOS

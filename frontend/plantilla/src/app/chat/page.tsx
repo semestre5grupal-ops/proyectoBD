@@ -95,8 +95,8 @@ const ROL_CONFIG: Record<
     descripcion: "Solo confirmación de tareas asignadas.",
     colorClass: "bg-muted text-muted-foreground hover:bg-muted/80 border",
     Icon: ShieldOff,
-    puedeEscribir: false,
-    puedeVoz: false,
+    puedeEscribir: true,
+    puedeVoz: true,
   },
 }
 
