@@ -44,8 +44,13 @@ export default function DepartamentosPage() {
     try {
       setLoading(true)
       const res = await departamentoService.getAll(currentPage, ITEMS_PER_PAGE, searchTerm)
-      setDepartamentos(res.data)
-      setTotalPages(res.totalPages || 1)
+      if (Array.isArray(res)) {
+        setDepartamentos(res)
+        setTotalPages(Math.ceil(res.length / ITEMS_PER_PAGE) || 1)
+      } else {
+        setDepartamentos(res.data || [])
+        setTotalPages(res.totalPages || 1)
+      }
     } catch (err: any) {
       setError(err.message || "Error al cargar datos")
     } finally {

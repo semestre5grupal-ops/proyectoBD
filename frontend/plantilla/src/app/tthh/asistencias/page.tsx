@@ -49,7 +49,11 @@ export default function AsistenciasPage() {
         : []
         
       setAsistencias(sortedAsis)
-      setEmpleados(Array.isArray(empData) ? empData.filter(e => e.emp_estado !== 'INC' && e.emp_estado !== 'INA') : [])
+      if (Array.isArray(empData)) {
+        setEmpleados(empData.filter(e => e.emp_estado !== 'INC' && e.emp_estado !== 'INA'))
+      } else {
+        setEmpleados((empData.data || []).filter((e: Empleado) => e.emp_estado !== 'INC' && e.emp_estado !== 'INA'))
+      }
       setCurrentPage(1)
     } catch (err: any) {
       setError(err.message || "Error al cargar datos")

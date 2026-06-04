@@ -50,7 +50,12 @@ export default function PermisosPage() {
         : []
         
       setPermisos(Array.isArray(perData) ? perData.filter((p: Permiso) => p.per_estado !== 'INC' && p.per_estado !== 'INA') : [])
-      setEmpleados(Array.isArray(empData) ? empData : [])
+      
+      if (Array.isArray(empData)) {
+        setEmpleados(empData)
+      } else {
+        setEmpleados(empData.data || [])
+      }
       setCurrentPage(1)
     } catch (err: any) {
       setError(err.message || "Error al cargar datos")
