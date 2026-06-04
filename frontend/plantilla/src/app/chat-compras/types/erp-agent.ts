@@ -56,6 +56,7 @@ export type AccionCompras =
  */
 export interface PayloadCompras {
   idProveedor?: number;
+  nombreProveedor?: string;
   idCompra?: number;
   idBodega?: number;
   productos?: Array<{ idVariante: number; cantidad: number; valor: number }>;

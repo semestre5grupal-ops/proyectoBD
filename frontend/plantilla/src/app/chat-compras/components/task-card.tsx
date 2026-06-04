@@ -249,8 +249,8 @@ export function TaskCard({ tarea, onConfirmar, onRechazar }: TaskCardProps) {
               />
               <FilaDato
                 icon={Layers}
-                label="ID Proveedor"
-                valor={tarea.payload.idProveedor}
+                label="Proveedor"
+                valor={tarea.payload.nombreProveedor || tarea.payload.idProveedor}
               />
               <FilaDato
                 icon={Warehouse}

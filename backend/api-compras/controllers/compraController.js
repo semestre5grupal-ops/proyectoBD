@@ -78,6 +78,44 @@ const updateCompraEstado = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Orden de compra no encontrada' });
     }
 
+    // Integración Automática: Generar Recepción en Inventarios si la orden se aprueba
+    if (estado === 'APR') {
+      try {
+        const compraCompleta = await Compra.getCompraById(req.params.id);
+        if (compraCompleta && compraCompleta.detalles) {
+          const payloadInventario = {
+            id_compra: Number(compraCompleta.id_compra),
+            id_bodega: 1,
+            descripcion: "Recepción generada desde módulo Compras",
+            usuario_responsable: "Liz_Cloud", // O usar req.user si está disponible
+            productos: compraCompleta.detalles.map(d => ({
+              id_variante: d.id_variante,
+              pxo_cantidad: d.pxo_cantidad
+            }))
+          };
+
+          const URL_INVENTARIO = process.env.URL_API_INVENTARIO || "http://localhost:4000";
+          
+          const inventarioRes = await fetch(`${URL_INVENTARIO}/api/inventario/recepciones`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": req.headers["authorization"] || ""
+            },
+            body: JSON.stringify(payloadInventario)
+          });
+
+          if (!inventarioRes.ok) {
+            console.warn(`[WARNING] Falló la creación de recepción en Inventario (HTTP ${inventarioRes.status})`);
+          } else {
+            console.log(`[SUCCESS] 🚀 Recepción generada exitosamente en la API de Inventario para la OC #${compraCompleta.id_compra}`);
+          }
+        }
+      } catch (err) {
+        console.error(`[ERROR] Excepción al notificar a Inventario: ${err.message}`);
+      }
+    }
+
     res.status(200).json({ success: true, data: compraActualizada });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

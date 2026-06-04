@@ -33,11 +33,13 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { chatOllama, type OllamaMessage } from '@/services/ollamaService';
 import { crearNotificacionTarea } from '@/services/comprasService';
+import { crearNotificacionTarea as crearNotificacionInventario } from '@/services/inventarioService';
 import {
   createCompra,
   updateCompraEstado,
   getCompraDetails,
   createRecepcion,
+  getProveedores,
 } from '@/app/compras/services/compras-service';
 import {
   SYSTEM_PROMPTS,
@@ -342,15 +344,27 @@ export function useAgent(): UseAgentState & UseAgentActions {
           if (!payload.idProveedor || !payload.productos?.length) {
             throw new Error('Faltan datos para crear la orden: idProveedor o productos.');
           }
+
+          // Calcular totales automáticamente
+          const subtotal = payload.productos.reduce((sum, p) => sum + (p.cantidad * (p.valor || 0)), 0);
+          const iva = subtotal * 0.15; // IVA 15%
+          const total = subtotal + iva;
+
+          // Fecha de entrega por defecto: hoy
+          const oc_fechaentrega = new Date().toISOString().split('T')[0];
+
           resultado = await createCompra({
             id_proveedor: payload.idProveedor,
-            oc_iva: 15,
-            oc_fechaentrega: null,
+            oc_estado: 'ABI',
+            oc_subtotal: subtotal,
+            oc_iva: iva,
+            oc_total: total,
+            oc_fechaentrega: oc_fechaentrega,
             items: payload.productos.map(p => ({
               id_variante: p.idVariante,
               pxo_cantidad: p.cantidad,
-              pxo_valor: p.valor,
-              pxo_subtotal: p.cantidad * p.valor
+              pxo_valor: p.valor || 0,
+              pxo_subtotal: p.cantidad * (p.valor || 0)
             }))
           });
           break;
@@ -359,6 +373,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
         case 'APROBAR_ORDEN': {
           if (!payload.idCompra) throw new Error('Falta el idCompra para aprobar.');
           resultado = await updateCompraEstado(payload.idCompra, 'APR');
+          // La notificación y sincronización a Inventario ahora ocurre automáticamente en el Backend (compraController.js)
           break;
         }
 
@@ -420,9 +435,10 @@ export function useAgent(): UseAgentState & UseAgentActions {
       );
 
       // ── Añadir mensaje de confirmación del sistema ────────────────────────
+      const mensajeSistema = formatearResultado(accion, resultado);
       agregarMensaje({
         id: `msg-ok-${Date.now()}`,
-        content: formatearResultado(accion, resultado),
+        content: mensajeSistema,
         timestamp: new Date().toISOString(),
         senderId: 'agent',
         type: 'text',
@@ -430,6 +446,15 @@ export function useAgent(): UseAgentState & UseAgentActions {
         reactions: [],
         replyTo: null,
       });
+
+      // ── Inyectar resultado al historial de la IA para dar contexto ────────
+      // Se inyecta como un mensaje del usuario simulado y una respuesta válida en JSON,
+      // para que el LLM (Llama 3.2) no se confunda con roles 'system' a mitad del chat y rompa el formato JSON.
+      historialRef.current = [
+        ...historialRef.current,
+        { role: 'user' as const, content: `[Sistema Interno] Notificación de la ejecución anterior:\n${mensajeSistema}` },
+        { role: 'assistant' as const, content: `{ "accion": "INFORMATIVO", "payload": {}, "confirmacion_requerida": false, "mensaje_usuario": "Registrado en memoria." }` }
+      ].slice(-20);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error desconocido al ejecutar la tarea.';
 
@@ -520,18 +545,48 @@ export function useAgent(): UseAgentState & UseAgentActions {
       ].slice(-20); // mantener máximo 20 mensajes de historial (10 turnos)
 
       // 6. Parsear la respuesta y crear TareaCompras
-      const tarea = parseAgentResponse(
+      let tarea = parseAgentResponse(
         respuestaCompleta,
         rolActivo,
         texto,
         nombreUsuario
       );
 
-      // 7a. Si es INFORMATIVO → la burbuja de texto ya tiene la respuesta, no añadir TaskCard
+      // --- Intercepción asíncrona para resolver Proveedor por nombre ---
+      if (tarea.accion === 'CREAR_ORDEN' && tarea.payload.nombreProveedor && !tarea.payload.idProveedor) {
+        try {
+          const proveedores = await getProveedores();
+          const pName = tarea.payload.nombreProveedor.toLowerCase();
+          const match = proveedores.find(p => p.prv_nombre.toLowerCase().includes(pName));
+          if (match) {
+            tarea.payload.idProveedor = match.id_proveedor;
+            tarea.payload.nombreProveedor = match.prv_nombre; // actual name
+            tarea.mensaje_usuario = `He encontrado al proveedor "${match.prv_nombre}". ` + tarea.mensaje_usuario;
+          } else {
+            tarea.accion = 'INFORMATIVO';
+            tarea.confirmacion_requerida = false;
+            tarea.mensaje_usuario = `No pude encontrar ningún proveedor que coincida con "${tarea.payload.nombreProveedor}". Por favor verifica el nombre exacto.`;
+            // Re-escribir la burbuja de streaming con este error
+            setMensajes(prev =>
+              prev.map(m =>
+                m.id === thinkingId ? { ...m, content: tarea.mensaje_usuario } : m
+              )
+            );
+          }
+        } catch (e) {
+          console.error("Error al buscar proveedores", e);
+        }
+      }
+
+      // 7a. Si es INFORMATIVO → la burbuja de texto ya tiene la respuesta (raw), la limpiamos
       if (tarea.accion === 'INFORMATIVO') {
-        // La respuesta ya está visible en la burbuja de streaming
-        // 🔊 Leer el mensaje en voz alta automáticamente
-        emitirVoz(respuestaCompleta);
+        setMensajes(prev =>
+          prev.map(m =>
+            m.id === thinkingId ? { ...m, content: tarea.mensaje_usuario } : m
+          )
+        );
+        // 🔊 Leer el mensaje limpio en voz alta automáticamente
+        emitirVoz(tarea.mensaje_usuario);
         setAgentThinking(false);
         return;
       }
@@ -804,7 +859,7 @@ function formatearResultado(
     case 'CREAR_ORDEN':
       return `✅ Orden de Compra generada correctamente. (ID: ${resultado.id_compra ?? '—'})`;
     case 'APROBAR_ORDEN':
-      return `✅ Orden de Compra aprobada exitosamente.`;
+      return `✅ Orden de Compra aprobada exitosamente. ${resultado.integrationMessage || ''}`.trim();
     case 'ANULAR_ORDEN':
       return `✅ Orden de Compra anulada.`;
     case 'CONSULTAR_ORDEN':

@@ -47,7 +47,7 @@ RESPONDE SIEMPRE Y ÚNICAMENTE con un objeto JSON con esta estructura:
 {
   "accion": "<ACCION>",
   "payload": {
-    "idProveedor": <número o null>,
+    "nombreProveedor": "<string o null (extrae el nombre en texto claro)>",
     "idCompra": <número o null>,
     "productos": [ { "idVariante": <numero>, "cantidad": <numero>, "valor": <numero> } ],
     "observacion": "<string o null>",
@@ -58,8 +58,8 @@ RESPONDE SIEMPRE Y ÚNICAMENTE con un objeto JSON con esta estructura:
 }
 
 Ejemplos:
-- "Crea una orden para el proveedor 5 con 20 unidades del producto 3 a 5.50 cada uno" →
-  { "accion": "CREAR_ORDEN", "payload": { "idProveedor": 5, "productos": [{ "idVariante": 3, "cantidad": 20, "valor": 5.50 }] }, "confirmacion_requerida": true, "mensaje_usuario": "Orden de compra generada para el proveedor 5. Por favor confirma la creación." }
+- "Crea una orden para el proveedor Coca Cola con 20 unidades del producto 3 a 5.50 cada uno" →
+  { "accion": "CREAR_ORDEN", "payload": { "nombreProveedor": "Coca Cola", "productos": [{ "idVariante": 3, "cantidad": 20, "valor": 5.50 }] }, "confirmacion_requerida": true, "mensaje_usuario": "Preparando orden de compra para Coca Cola. Por favor confirma." }
 
 - "Consulta el estado de la orden 12" →
   { "accion": "CONSULTAR_ORDEN", "payload": { "idCompra": 12 }, "confirmacion_requerida": false, "mensaje_usuario": "Consultando los detalles de la orden de compra 12..." }
