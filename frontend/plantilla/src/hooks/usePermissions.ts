@@ -11,8 +11,9 @@ export function usePermissions() {
   };
 
   const user = getUserInfo();
-  // Asumimos operativotth por defecto o si no hay rol definido para máxima restricción
-  const role: RoleType = user?.rol_nombre || 'operativotth'; 
+  // Asumimos operativotth por defecto o si no hay rol definido para máxima restricción. 
+  // Si el usuario es admin, le damos gerentetth por defecto.
+  const role: RoleType = user?.usu_nombre === 'admin' ? 'gerentetth' : (user?.rol_nombre || 'operativotth'); 
 
   const isGerente = role === 'gerentetth';
   const isAuxiliar = role === 'auxiliartth';

@@ -64,7 +64,22 @@ const data = {
           url: "/dashboard/inventario",
           icon: Package,
         },
-        // Gabriel — Ventas: agregar aquí cuando esté listo
+        // Gabriel — Ventas
+        {
+          title: "Ventas (Gabriel)",
+          url: "#",
+          icon: ShoppingCart,
+          items: [
+            {
+              title: "Dashboard Ventas",
+              url: "/dash-ventas",
+            },
+            {
+              title: "Gestión de Ventas",
+              url: "/ventas",
+            },
+          ],
+        },
         {
           title: "Compras (Liz)",
           url: "#",

@@ -46,12 +46,12 @@ export default function DependientesPage() {
   const fetchData = async () => {
     try {
       setLoading(true)
-      const [depData] = await Promise.all([
+      const [depData, empData] = await Promise.all([
         dependienteService.getAll(),
+        empleadoService.getEmpleados(1, 1000)
       ])
       setDependientes(Array.isArray(depData) ? depData.filter((d: Dependiente) => d.dep_estado !== 'INC') : [])
-      // Empleados are no longer loaded here, they are loaded asynchronously
-      // setEmpleados(Array.isArray(empData) ? empData : [])
+      setEmpleados(empData && Array.isArray(empData.data) ? empData.data : [])
       setCurrentPage(1)
     } catch (err: any) {
       setError(err.message || "Error al cargar datos")
@@ -132,24 +132,18 @@ export default function DependientesPage() {
     }
 
     try {
-      const data: Dependiente = {
+      const data: any = {
         ...(editingDep || {}),
         id_empleado: parseInt(formData.id_empleado),
         dep_ceddoc: formData.dep_ceddoc,
         dep_nom1: formData.dep_nom1,
-        dep_nom2: formData.dep_nom2,
+        dep_nom2: formData.dep_nom2 || null,
         dep_ap1: formData.dep_ap1,
-        dep_ap2: formData.dep_ap2,
+        dep_ap2: formData.dep_ap2 || null,
         dep_fechanacimiento: new Date(formData.dep_fechanacimiento).toISOString(),
         dep_sexo: formData.dep_sexo,
         dep_parentesco: formData.dep_parentesco,
-        dep_estado: editingDep ? editingDep.dep_estado : "ACT"
-      }
-
-      // Evitar enviar un sexo vacío
-      if (!data.dep_sexo) {
-        toast.error("Por favor selecciona el sexo");
-        return;
+        dep_estado: formData.dep_estado
       }
 
       if (editingDep && editingDep.id_dependiente) {
@@ -170,7 +164,7 @@ export default function DependientesPage() {
 
   const handleDelete = async (dep: Dependiente) => {
     if (!dep.id_dependiente) return
-    if (!confirm(`¿Seguro que deseas eliminar a este dependiente?`)) return
+    if (!confirm(`¿Seguro que deseas eliminar a ${dep.dep_nom1} ${dep.dep_ap1}?`)) return
 
     try {
       await dependienteService.delete(dep.id_dependiente)
@@ -185,14 +179,14 @@ export default function DependientesPage() {
   return (
     <BaseLayout 
       title="Gestión de Dependientes" 
-      description="Cargas familiares y dependientes de los empleados."
+      description="Administración de los dependientes (familiares) de los empleados."
     >
       <div className="flex flex-col gap-4 px-4 lg:px-6 mt-6">
         
         <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border">
           <div className="flex items-center gap-2">
             <Baby className="text-primary" size={20} />
-            <h2 className="text-lg font-semibold">Dependientes (Cargas Familiares)</h2>
+            <h2 className="text-lg font-semibold">Dependientes</h2>
           </div>
           <Button onClick={() => handleOpenModal()} className="gap-2">
             <Plus size={16} /> Nuevo Dependiente
@@ -202,7 +196,7 @@ export default function DependientesPage() {
         <div className="flex items-center bg-white p-1 rounded-lg shadow-sm border w-full max-w-md">
           <Search className="text-muted-foreground ml-2 mr-2 w-5 h-5" />
           <Input 
-            placeholder="Buscar por nombre, cédula o empleado..." 
+            placeholder="Buscar por empleado o dependiente..." 
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value)
@@ -221,32 +215,30 @@ export default function DependientesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Empleado Asociado</TableHead>
+                  <TableHead>Empleado</TableHead>
+                  <TableHead>Dependiente</TableHead>
                   <TableHead>Cédula</TableHead>
-                  <TableHead>Nombre del Dependiente</TableHead>
                   <TableHead>Parentesco</TableHead>
-                  <TableHead>Nacimiento</TableHead>
+                  <TableHead>Sexo</TableHead>
+                  <TableHead>F. Nacimiento</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {currentDependientes.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
                       No hay dependientes registrados.
                     </TableCell>
                   </TableRow>
                 ) : (
                   currentDependientes.map((dep) => (
                     <TableRow key={dep.id_dependiente}>
-                      <TableCell className="font-medium text-blue-600">{getEmpleadoName(dep.id_empleado)}</TableCell>
+                      <TableCell className="font-medium">{getEmpleadoName(dep.id_empleado)}</TableCell>
+                      <TableCell>{`${dep.dep_nom1} ${dep.dep_ap1}`}</TableCell>
                       <TableCell>{dep.dep_ceddoc}</TableCell>
-                      <TableCell>{dep.dep_nom1} {dep.dep_ap1}</TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset bg-gray-50 text-gray-700 ring-gray-600/20">
-                          {dep.dep_parentesco}
-                        </span>
-                      </TableCell>
+                      <TableCell>{dep.dep_parentesco}</TableCell>
+                      <TableCell>{dep.dep_sexo === 'M' ? 'Masculino' : 'Femenino'}</TableCell>
                       <TableCell>{new Date(dep.dep_fechanacimiento).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => handleOpenModal(dep)}>
@@ -267,11 +259,11 @@ export default function DependientesPage() {
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>{editingDep ? "Editar Dependiente" : "Nuevo Dependiente"}</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto px-1">
+          <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="id_empleado" className="text-right">Empleado</Label>
                 <div className="col-span-3">
@@ -286,67 +278,66 @@ export default function DependientesPage() {
                   />
                 </div>
               </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="dep_ceddoc">Documento / Cédula *</Label>
-              <Input id="dep_ceddoc" value={formData.dep_ceddoc} onChange={handleInputChange} maxLength={10} />
-            </div>
             
+            <div className="grid gap-2">
+              <Label htmlFor="dep_ceddoc">Cédula del Dependiente *</Label>
+              <Input id="dep_ceddoc" value={formData.dep_ceddoc} onChange={handleInputChange} />
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="dep_nom1">Primer Nombre *</Label>
-                <Input id="dep_nom1" value={formData.dep_nom1} onChange={handleInputChange} maxLength={50} />
+                <Input id="dep_nom1" value={formData.dep_nom1} onChange={handleInputChange} />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="dep_nom2">Segundo Nombre</Label>
-                <Input id="dep_nom2" value={formData.dep_nom2} onChange={handleInputChange} maxLength={50} />
+                <Input id="dep_nom2" value={formData.dep_nom2} onChange={handleInputChange} />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="dep_ap1">Primer Apellido *</Label>
-                <Input id="dep_ap1" value={formData.dep_ap1} onChange={handleInputChange} maxLength={50} />
+                <Input id="dep_ap1" value={formData.dep_ap1} onChange={handleInputChange} />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="dep_ap2">Segundo Apellido</Label>
-                <Input id="dep_ap2" value={formData.dep_ap2} onChange={handleInputChange} maxLength={50} />
+                <Input id="dep_ap2" value={formData.dep_ap2} onChange={handleInputChange} />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="dep_fechanacimiento">Fecha Nacimiento *</Label>
-                <Input type="date" id="dep_fechanacimiento" value={formData.dep_fechanacimiento} onChange={handleInputChange} max={new Date().toISOString().split('T')[0]} />
-              </div>
-              <div className="grid gap-2">
                 <Label htmlFor="dep_sexo">Sexo *</Label>
                 <select 
                   id="dep_sexo" 
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
                   value={formData.dep_sexo}
                   onChange={handleInputChange as any}
                 >
-                  <option value="">Seleccione...</option>
                   <option value="M">Masculino</option>
                   <option value="F">Femenino</option>
+                </select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="dep_parentesco">Parentesco *</Label>
+                <select 
+                  id="dep_parentesco" 
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={formData.dep_parentesco}
+                  onChange={handleInputChange as any}
+                >
+                  <option value="Hijo/a">Hijo/a</option>
+                  <option value="Cónyuge">Cónyuge</option>
+                  <option value="Padre/Madre">Padre/Madre</option>
+                  <option value="Hermano/a">Hermano/a</option>
                 </select>
               </div>
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="dep_parentesco">Parentesco *</Label>
-              <select 
-                id="dep_parentesco" 
-                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
-                value={formData.dep_parentesco}
-                onChange={handleInputChange as any}
-              >
-                <option value="Hijo/a">Hijo/a</option>
-                <option value="Cónyuge">Cónyuge</option>
-                <option value="Padre/Madre">Padre/Madre</option>
-                <option value="Otro">Otro</option>
-              </select>
+              <Label htmlFor="dep_fechanacimiento">Fecha Nacimiento *</Label>
+              <Input type="date" id="dep_fechanacimiento" value={formData.dep_fechanacimiento} onChange={handleInputChange} />
             </div>
           </div>
           <DialogFooter>

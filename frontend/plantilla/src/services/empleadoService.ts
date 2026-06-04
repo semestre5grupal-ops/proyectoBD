@@ -32,6 +32,13 @@ export const empleadoService = {
     return await response.json();
   },
 
+  getAllList: async (): Promise<Empleado[]> => {
+    const response = await apiFetch('/empleados?limit=all');
+    if (!response.ok) throw new Error('Error al obtener empleados');
+    const res = await response.json();
+    return res.data || res;
+  },
+
   createEmpleado: async (empleado: Empleado): Promise<Empleado> => {
     const response = await apiFetch('/empleados', {
       method: 'POST',

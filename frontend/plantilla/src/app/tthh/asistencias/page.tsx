@@ -40,7 +40,7 @@ export default function AsistenciasPage() {
       setLoading(true)
       const [asisData, empData] = await Promise.all([
         asistenciaService.getAll(),
-        empleadoService.getEmpleados()
+        empleadoService.getEmpleados(1, 1000)
       ])
       
       // Ordenamos por fecha_hora descendente para ver las más recientes primero
@@ -49,10 +49,10 @@ export default function AsistenciasPage() {
         : []
         
       setAsistencias(sortedAsis)
-      if (Array.isArray(empData)) {
-        setEmpleados(empData.filter(e => e.emp_estado !== 'INC' && e.emp_estado !== 'INA'))
-      } else {
-        setEmpleados((empData.data || []).filter((e: Empleado) => e.emp_estado !== 'INC' && e.emp_estado !== 'INA'))
+      if (empData && Array.isArray(empData.data)) {
+        setEmpleados(empData.data.filter((e: Empleado) => e.emp_estado !== 'INC' && e.emp_estado !== 'INA'))
+      } else if (Array.isArray(empData)) {
+        setEmpleados((empData as Empleado[]).filter((e: Empleado) => e.emp_estado !== 'INC' && e.emp_estado !== 'INA'))
       }
       setCurrentPage(1)
     } catch (err: any) {
@@ -64,14 +64,14 @@ export default function AsistenciasPage() {
 
   const getEmpleadoName = (id: number) => {
     const emp = empleados.find(e => e.id_empleado === id)
-    return emp ? `${emp.emp_nom1} ${emp.emp_ap1}` : "Desconocido"
+    return emp ? `${emp.emp_nom1} ${emp.emp_ap1}` : `Empleado #${id}`
   }
 
   const getMovimientoLabel = (mov: string) => {
     if (!mov) return "Desconocido";
     const cleanMov = mov.trim();
-    if (cleanMov === 'ENTRA') return 'Entrada';
-    if (cleanMov === 'SALE') return 'Salida';
+    if (cleanMov === 'ENTRA' || cleanMov === 'Entrada') return 'Entrada';
+    if (cleanMov === 'SALE' || cleanMov === 'Salida') return 'Salida';
     return mov;
   }
 
@@ -97,19 +97,20 @@ export default function AsistenciasPage() {
       
       // Formatear la fecha para input datetime-local (YYYY-MM-DDThh:mm)
       const dt = new Date(asis.fecha_hora)
-      const tzoffset = dt.getTimezoneOffset() * 60000; // offset in milliseconds
+      const tzoffset = dt.getTimezoneOffset() * 60000;
       const localISOTime = (new Date(dt.getTime() - tzoffset)).toISOString().slice(0, 16);
       
       setFormData({
         id_empleado: String(asis.id_empleado),
         fecha_hora: localISOTime,
-        tipo_movimiento: getMovimientoLabel(asis.tipo_movimiento)
+        tipo_movimiento: asis.tipo_movimiento === 'ENTRA' ? 'Entrada' : 'Salida'
       })
     } else {
       setEditingAsistencia(null)
-      const now = new Date()
-      const tzoffset = now.getTimezoneOffset() * 60000;
-      const localISOTime = (new Date(now.getTime() - tzoffset)).toISOString().slice(0, 16);
+      
+      const dt = new Date()
+      const tzoffset = dt.getTimezoneOffset() * 60000;
+      const localISOTime = (new Date(dt.getTime() - tzoffset)).toISOString().slice(0, 16);
       
       setFormData({
         id_empleado: "",
@@ -131,17 +132,18 @@ export default function AsistenciasPage() {
   }
 
   const handleSave = async () => {
-    if (!formData.id_empleado || !formData.fecha_hora) {
+    if (!formData.id_empleado || !formData.fecha_hora || !formData.tipo_movimiento) {
       toast.error("Por favor completa los campos obligatorios")
       return
     }
 
     try {
-      const data: Asistencia = {
+      const data: any = {
         ...(editingAsistencia || {}),
         id_empleado: parseInt(formData.id_empleado),
         fecha_hora: new Date(formData.fecha_hora).toISOString(),
-        tipo_movimiento: formData.tipo_movimiento === 'Entrada' ? 'ENTRA' : 'SALE '
+        tipo_movimiento: formData.tipo_movimiento === 'Entrada' ? 'ENTRA' : 'SALE',
+        asis_estado: "ACT"
       }
 
       if (editingAsistencia && editingAsistencia.id_asistencia) {
@@ -162,12 +164,12 @@ export default function AsistenciasPage() {
 
   const handleDelete = async (asis: Asistencia) => {
     if (!asis.id_asistencia) return
-    if (!confirm(`¿Seguro que deseas eliminar este registro de asistencia?`)) return
+    if (!confirm(`¿Seguro que deseas eliminar esta asistencia?`)) return
 
     try {
       await asistenciaService.delete(asis.id_asistencia)
       setAsistencias(prev => prev.filter(a => a.id_asistencia !== asis.id_asistencia))
-      toast.success("Registro eliminado")
+      toast.success("Asistencia eliminada")
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al eliminar"))
@@ -177,24 +179,24 @@ export default function AsistenciasPage() {
   return (
     <BaseLayout 
       title="Control de Asistencias" 
-      description="Registro de marcaciones de entrada y salida."
+      description="Marcado de entradas y salidas de los empleados."
     >
       <div className="flex flex-col gap-4 px-4 lg:px-6 mt-6">
         
         <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border">
           <div className="flex items-center gap-2">
             <CalendarCheck className="text-primary" size={20} />
-            <h2 className="text-lg font-semibold">Marcaciones de Asistencia</h2>
+            <h2 className="text-lg font-semibold">Asistencias</h2>
           </div>
-          <Button onClick={() => handleOpenModal()} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
-            <Plus size={16} /> Registrar Marcación
+          <Button onClick={() => handleOpenModal()} className="gap-2">
+            <Plus size={16} /> Registrar Asistencia
           </Button>
         </div>
 
         <div className="flex items-center bg-white p-1 rounded-lg shadow-sm border w-full max-w-md">
           <Search className="text-muted-foreground ml-2 mr-2 w-5 h-5" />
           <Input 
-            placeholder="Buscar por empleado o movimiento..." 
+            placeholder="Buscar por empleado o tipo..." 
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value)
@@ -205,7 +207,7 @@ export default function AsistenciasPage() {
         </div>
 
         {loading ? (
-          <div className="flex justify-center p-8">Cargando marcaciones...</div>
+          <div className="flex justify-center p-8">Cargando asistencias...</div>
         ) : error ? (
           <div className="bg-red-100 text-red-600 p-4 rounded-md">{error}</div>
         ) : (
@@ -214,8 +216,7 @@ export default function AsistenciasPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Empleado</TableHead>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Hora</TableHead>
+                  <TableHead>Fecha y Hora</TableHead>
                   <TableHead>Tipo Movimiento</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
@@ -223,67 +224,37 @@ export default function AsistenciasPage() {
               <TableBody>
                 {currentAsistencias.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
-                      No hay registros de asistencia.
+                    <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
+                      No hay asistencias registradas.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  currentAsistencias.map((asis) => {
-                    const dt = new Date(asis.fecha_hora);
-                    return (
-                      <TableRow key={asis.id_asistencia}>
-                        <TableCell className="font-medium text-blue-600">{getEmpleadoName(asis.id_empleado)}</TableCell>
-                        <TableCell>{dt.toLocaleDateString()}</TableCell>
-                        <TableCell>{dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</TableCell>
-                        <TableCell>
-                          <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset ${
-                            (asis.tipo_movimiento || '').trim() === 'ENTRA' 
-                              ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' 
-                              : 'bg-orange-50 text-orange-700 ring-orange-600/20'
-                          }`}>
-                            {getMovimientoLabel(asis.tipo_movimiento)}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" onClick={() => handleOpenModal(asis)}>
-                            <Edit2 size={16} className="text-blue-500" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(asis)}>
-                            <Trash2 size={16} className="text-red-500" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })
+                  currentAsistencias.map((asis) => (
+                    <TableRow key={asis.id_asistencia}>
+                      <TableCell className="font-medium">{getEmpleadoName(asis.id_empleado)}</TableCell>
+                      <TableCell>{new Date(asis.fecha_hora).toLocaleString()}</TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset ${
+                          getMovimientoLabel(asis.tipo_movimiento) === 'Entrada' 
+                            ? 'bg-green-50 text-green-700 ring-green-600/20' 
+                            : 'bg-amber-50 text-amber-700 ring-amber-600/20'
+                        }`}>
+                          {getMovimientoLabel(asis.tipo_movimiento)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => handleOpenModal(asis)}>
+                          <Edit2 size={16} className="text-blue-500" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(asis)}>
+                          <Trash2 size={16} className="text-red-500" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
                 )}
               </TableBody>
             </Table>
-            
-            {filteredAsistencias.length > ITEMS_PER_PAGE && (
-              <div className="flex items-center justify-between px-4 py-3 border-t">
-                <div className="text-sm text-muted-foreground">
-                  Mostrando del {(currentPage - 1) * ITEMS_PER_PAGE + 1} al {Math.min(currentPage * ITEMS_PER_PAGE, filteredAsistencias.length)} de {filteredAsistencias.length} registros
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Anterior
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    Siguiente
-                  </Button>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -292,33 +263,34 @@ export default function AsistenciasPage() {
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>{editingAsistencia ? "Editar Marcación" : "Registrar Marcación"}</DialogTitle>
+            <DialogTitle>{editingAsistencia ? "Editar Asistencia" : "Registrar Asistencia"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            
             <div className="grid gap-2">
               <Label htmlFor="id_empleado">Empleado *</Label>
               <select 
-                id="id_empleado" 
+                id="id_empleado"
                 className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
                 value={formData.id_empleado}
                 onChange={handleInputChange as any}
               >
-                <option value="">Seleccione un empleado...</option>
+                <option value="">Seleccione...</option>
                 {empleados.map(emp => (
                   <option key={emp.id_empleado} value={emp.id_empleado}>
-                    {emp.emp_nom1} {emp.emp_ap1} - {emp.emp_cedula}
+                    {emp.emp_nom1} {emp.emp_ap1} ({emp.emp_cedula})
                   </option>
                 ))}
               </select>
             </div>
-            
+
             <div className="grid gap-2">
               <Label htmlFor="fecha_hora">Fecha y Hora *</Label>
               <Input type="datetime-local" id="fecha_hora" value={formData.fecha_hora} onChange={handleInputChange} />
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="tipo_movimiento">Tipo de Movimiento *</Label>
+              <Label htmlFor="tipo_movimiento">Movimiento *</Label>
               <select 
                 id="tipo_movimiento" 
                 className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
@@ -329,10 +301,11 @@ export default function AsistenciasPage() {
                 <option value="Salida">Salida</option>
               </select>
             </div>
+
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseModal}>Cancelar</Button>
-            <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-700">Guardar</Button>
+            <Button onClick={handleSave}>Guardar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
