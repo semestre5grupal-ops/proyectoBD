@@ -26,9 +26,7 @@ import {
   Warehouse,
   Hash,
   Layers,
-  ArrowDownCircle,
   ArrowUpCircle,
-  CloudUpload,
   Search,
   AlertTriangle,
   Info,
@@ -61,45 +59,61 @@ interface AccionConfig {
 }
 
 const ACCION_CONFIG: Record<AccionCompras, AccionConfig> = {
-  INGRESAR_STOCK: {
-    label: "Ingreso de Stock",
-    labelCorto: "INGRESO",
-    Icon: ArrowDownCircle,
+  CREAR_ORDEN: {
+    label: "Crear Orden de Compra",
+    labelCorto: "ORDEN",
+    Icon: Package,
+    colorBorder: "border-blue-500/40 dark:border-blue-500/30",
+    colorBadge: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30",
+    colorIcono: "text-blue-500",
+  },
+  APROBAR_ORDEN: {
+    label: "Aprobar Orden",
+    labelCorto: "APROBACIÓN",
+    Icon: CheckCircle2,
     colorBorder: "border-emerald-500/40 dark:border-emerald-500/30",
     colorBadge: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
     colorIcono: "text-emerald-500",
   },
-  DESCONTAR_STOCK: {
-    label: "Descuento de Stock",
-    labelCorto: "DESCUENTO",
-    Icon: ArrowUpCircle,
-    colorBorder: "border-amber-500/40 dark:border-amber-500/30",
-    colorBadge: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30",
-    colorIcono: "text-amber-500",
-  },
-  DAR_DE_BAJA: {
-    label: "Baja de Variante",
-    labelCorto: "BAJA LÓGICA",
+  ANULAR_ORDEN: {
+    label: "Anular Orden",
+    labelCorto: "ANULACIÓN",
     Icon: XCircle,
     colorBorder: "border-destructive/40",
     colorBadge: "bg-destructive/10 text-destructive border-destructive/30",
     colorIcono: "text-destructive",
   },
-  CONSULTAR: {
-    label: "Consulta de Stock",
+  CREAR_PROVEEDOR: {
+    label: "Crear Proveedor",
+    labelCorto: "PROVEEDOR",
+    Icon: Layers,
+    colorBorder: "border-purple-500/40 dark:border-purple-500/30",
+    colorBadge: "bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-500/30",
+    colorIcono: "text-purple-500",
+  },
+  CONSULTAR_ORDEN: {
+    label: "Consultar Orden",
     labelCorto: "CONSULTA",
     Icon: Search,
     colorBorder: "border-blue-500/40 dark:border-blue-500/30",
     colorBadge: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30",
     colorIcono: "text-blue-500",
   },
-  SINCRONIZAR: {
-    label: "Sincronización Firebase",
-    labelCorto: "SINCRONIZAR",
-    Icon: CloudUpload,
-    colorBorder: "border-purple-500/40 dark:border-purple-500/30",
-    colorBadge: "bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-500/30",
-    colorIcono: "text-purple-500",
+  REGISTRAR_RECEPCION: {
+    label: "Registrar Recepción",
+    labelCorto: "RECEPCIÓN",
+    Icon: Warehouse,
+    colorBorder: "border-emerald-500/40 dark:border-emerald-500/30",
+    colorBadge: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
+    colorIcono: "text-emerald-500",
+  },
+  REGISTRAR_DEVOLUCION: {
+    label: "Registrar Devolución",
+    labelCorto: "DEVOLUCIÓN",
+    Icon: ArrowUpCircle,
+    colorBorder: "border-amber-500/40 dark:border-amber-500/30",
+    colorBadge: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30",
+    colorIcono: "text-amber-500",
   },
   INFORMATIVO: {
     label: "Información",
@@ -108,30 +122,6 @@ const ACCION_CONFIG: Record<AccionCompras, AccionConfig> = {
     colorBorder: "border-border",
     colorBadge: "bg-muted text-muted-foreground border-border",
     colorIcono: "text-muted-foreground",
-  },
-  CONFIRMAR_RECEPCION: {
-    label: "Confirmar Recepción",
-    labelCorto: "CONFIRMACIÓN",
-    Icon: CheckCircle2,
-    colorBorder: "border-emerald-500/40 dark:border-emerald-500/30",
-    colorBadge: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
-    colorIcono: "text-emerald-500",
-  },
-  CREAR_PRODUCTO: {
-    label: "Orden de Recepción (Jefe → Operativo)",
-    labelCorto: "DELEGACIÓN",
-    Icon: Package,
-    colorBorder: "border-blue-500/40 dark:border-blue-500/30",
-    colorBadge: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30",
-    colorIcono: "text-blue-500",
-  },
-  AUTORIZAR_AJUSTE: {
-    label: "Ajuste Autorizado",
-    labelCorto: "AJUSTE",
-    Icon: ArrowDownCircle,
-    colorBorder: "border-amber-500/40 dark:border-amber-500/30",
-    colorBadge: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30",
-    colorIcono: "text-amber-500",
   },
 }
 
@@ -245,26 +235,22 @@ export function TaskCard({ tarea, onConfirmar, onRechazar }: TaskCardProps) {
         </p>
 
         {/* Datos estructurados — solo si existen */}
-        {(tarea.payload.idVariante != null ||
-          tarea.payload.cantidad != null ||
+        {(tarea.payload.idCompra != null ||
+          tarea.payload.idProveedor != null ||
           tarea.payload.idBodega != null ||
-          tarea.payload.descripcion) && (
+          tarea.payload.observacion) && (
           <>
             <Separator className="my-2" />
             <div className="space-y-1.5">
               <FilaDato
                 icon={Hash}
-                label="Variante"
-                valor={tarea.payload.idVariante}
+                label="ID Orden"
+                valor={tarea.payload.idCompra}
               />
               <FilaDato
                 icon={Layers}
-                label="Cantidad"
-                valor={
-                  tarea.payload.cantidad != null
-                    ? `${tarea.payload.cantidad} uds.`
-                    : null
-                }
+                label="ID Proveedor"
+                valor={tarea.payload.idProveedor}
               />
               <FilaDato
                 icon={Warehouse}
@@ -277,8 +263,8 @@ export function TaskCard({ tarea, onConfirmar, onRechazar }: TaskCardProps) {
               />
               <FilaDato
                 icon={Package}
-                label="Nota"
-                valor={tarea.payload.descripcion}
+                label="Observación"
+                valor={tarea.payload.observacion}
               />
             </div>
           </>

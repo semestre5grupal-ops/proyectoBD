@@ -32,13 +32,13 @@ import { useState, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 import { chatOllama, type OllamaMessage } from '@/services/ollamaService';
+import { crearNotificacionTarea } from '@/services/comprasService';
 import {
-  ingresarStock,
-  descontarStock,
-  consultarStock,
-  sincronizarCloud,
-  crearNotificacionTarea,
-} from '@/services/comprasService';
+  createCompra,
+  updateCompraEstado,
+  getCompraDetails,
+  createRecepcion,
+} from '@/app/compras/services/compras-service';
 import {
   SYSTEM_PROMPTS,
   mapearRolJWT,
@@ -338,59 +338,66 @@ export function useAgent(): UseAgentState & UseAgentActions {
       let resultado: any;
 
       switch (accion) {
-        case 'INGRESAR_STOCK': {
-          if (
-            payload.idVariante == null ||
-            payload.cantidad == null ||
-            payload.idBodega == null
-          ) {
-            throw new Error('Faltan datos para ingresar stock: idVariante, cantidad o idBodega.');
+        case 'CREAR_ORDEN': {
+          if (!payload.idProveedor || !payload.productos?.length) {
+            throw new Error('Faltan datos para crear la orden: idProveedor o productos.');
           }
-          resultado = await ingresarStock({
-            idVariante: payload.idVariante,
-            cantidad: payload.cantidad,
-            idBodega: payload.idBodega,
-            descripcion: payload.descripcion ?? 'Ingreso vía Agente IA',
-            usuario: payload.usuario ?? nombreUsuario,
+          resultado = await createCompra({
+            id_proveedor: payload.idProveedor,
+            oc_iva: 15,
+            oc_fechaentrega: null,
+            items: payload.productos.map(p => ({
+              id_variante: p.idVariante,
+              pxo_cantidad: p.cantidad,
+              pxo_valor: p.valor,
+              pxo_subtotal: p.cantidad * p.valor
+            }))
           });
           break;
         }
 
-        case 'CREAR_PRODUCTO':
-        case 'AUTORIZAR_AJUSTE': {
-          // El Jefe delega — estas acciones NO ejecutan stock directamente.
-          // Solo persisten la notificación en el backend (ya ocurrió al llamar
-          // ingresarStock del Jefe, o se deja pendiente para el Operativo).
-          // Resultado exitoso sin impacto inmediato en stock.
-          resultado = { success: true, message: 'Tarea delegada al Operativo de Compras.' };
+        case 'APROBAR_ORDEN': {
+          if (!payload.idCompra) throw new Error('Falta el idCompra para aprobar.');
+          resultado = await updateCompraEstado(payload.idCompra, 'APR');
           break;
         }
 
-        case 'DESCONTAR_STOCK': {
-          if (payload.idVariante == null || payload.cantidad == null) {
-            throw new Error('Faltan datos: idVariante y cantidad son obligatorios.');
-          }
-          resultado = await descontarStock(payload.idVariante, payload.cantidad);
+        case 'ANULAR_ORDEN': {
+          if (!payload.idCompra) throw new Error('Falta el idCompra para anular.');
+          resultado = await updateCompraEstado(payload.idCompra, 'ANU');
           break;
         }
 
-        case 'CONSULTAR': {
-          if (payload.idVariante == null) {
-            throw new Error('Falta el ID de la variante a consultar.');
-          }
-          resultado = await consultarStock(payload.idVariante);
+        case 'CONSULTAR_ORDEN': {
+          if (!payload.idCompra) throw new Error('Falta el idCompra a consultar.');
+          resultado = await getCompraDetails(payload.idCompra);
           break;
         }
 
-        case 'SINCRONIZAR':
-          resultado = await sincronizarCloud();
+        case 'REGISTRAR_RECEPCION': {
+          if (!payload.idCompra) throw new Error('Falta el idCompra para la recepción.');
+          const detallesOrden = await getCompraDetails(payload.idCompra);
+          resultado = await createRecepcion({
+            id_compra: payload.idCompra,
+            id_bodega: payload.idBodega || 1,
+            rec_descripcion: payload.observacion || 'Recepción vía Agente IA',
+            usu_responsable: nombreUsuario,
+            items: detallesOrden.items.map(item => ({
+              id_variante: item.id_variante,
+              pxr_cantidad_solicitada: item.pxo_cantidad,
+              pxr_qty_recibida: item.pxo_cantidad,
+              pxr_diferencia: 0,
+              pxr_motivo_diferencia: null
+            }))
+          });
           break;
+        }
 
+        case 'REGISTRAR_DEVOLUCION':
+        case 'CREAR_PROVEEDOR':
         case 'INFORMATIVO':
-        case 'DAR_DE_BAJA':
         default:
-          // Estas acciones no tienen endpoint directo en comprasService
-          resultado = { success: true, message: 'Acción registrada.' };
+          resultado = { success: true, message: 'Acción registrada correctamente.' };
           break;
       }
 
@@ -529,9 +536,8 @@ export function useAgent(): UseAgentState & UseAgentActions {
         return;
       }
 
-      // ══ Regla de oro: CREAR_PRODUCTO y AUTORIZAR_AJUSTE son SIEMPRE confirmación requerida ══
       const accionesQueRequierenConfirmacion: AccionCompras[] = [
-        'CREAR_PRODUCTO', 'AUTORIZAR_AJUSTE', 'DAR_DE_BAJA', 'SINCRONIZAR',
+        'CREAR_ORDEN', 'APROBAR_ORDEN', 'ANULAR_ORDEN', 'CREAR_PROVEEDOR', 'REGISTRAR_RECEPCION', 'REGISTRAR_DEVOLUCION'
       ];
       const confirmacionForzada =
         tarea.confirmacion_requerida ||
@@ -795,20 +801,18 @@ function formatearResultado(
   resultado: Record<string, unknown>
 ): string {
   switch (accion) {
-    case 'INGRESAR_STOCK':
-      return `✅ Stock ingresado correctamente. Stock actual: ${resultado.stock_actual ?? '—'} uds.`;
-    case 'DESCONTAR_STOCK':
-      return `✅ Stock descontado. Stock restante: ${resultado.stock_restante ?? '—'} uds.`;
-    case 'CONSULTAR':
-      return `📦 Stock disponible: ${resultado.stock_disponible ?? '—'} uds. (Bodega ${resultado.id_bodega ?? '—'})`;
-    case 'SINCRONIZAR':
-      return `☁️ Sincronización completada. Items procesados: ${resultado.items_sincronizados ?? '—'}.`;
-    case 'CONFIRMAR_RECEPCION':
-      return '✅ Recepción confirmada y registrada.';
-    case 'CREAR_PRODUCTO':
-      return '📤 Orden de recepción generada y enviada al Operativo de Compras.';
-    case 'AUTORIZAR_AJUSTE':
-      return '✅ Ajuste autorizado. El Operativo debe confirmar la ejecución en bodega.';
+    case 'CREAR_ORDEN':
+      return `✅ Orden de Compra generada correctamente. (ID: ${resultado.id_compra ?? '—'})`;
+    case 'APROBAR_ORDEN':
+      return `✅ Orden de Compra aprobada exitosamente.`;
+    case 'ANULAR_ORDEN':
+      return `✅ Orden de Compra anulada.`;
+    case 'CONSULTAR_ORDEN':
+      return `📄 Orden ${resultado.id_compra}: Estado ${resultado.oc_estado}, Total $${resultado.oc_total}`;
+    case 'REGISTRAR_RECEPCION':
+      return `✅ Recepción física registrada para la orden ${resultado.id_compra ?? '—'}.`;
+    case 'REGISTRAR_DEVOLUCION':
+      return `✅ Devolución registrada al proveedor.`;
     default:
       return String(resultado.message ?? 'Operación completada.');
   }

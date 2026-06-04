@@ -18,9 +18,9 @@
 /**
  * Roles del Agentic Task Center para el módulo de Compras.
  * Mapeo desde el JWT:
- *   id_rol === 1  | rol === "ADMIN"         → JEFE_COMPRAS
- *   id_rol === 2  | rol === "EMPLEADO_BODEGA"→ AUXILIAR_COMPRAS
- *   otro          | rol === "CLIENTE_..."   → OPERATIVO_COMPRAS (solo confirmaciones)
+ *   id_rol === 1, 11 o usu_nombre === 'admin' -> JEFE_COMPRAS
+ *   id_rol === 12 -> AUXILIAR_COMPRAS
+ *   id_rol === 13 -> OPERATIVO_COMPRAS
  */
 export type RolCompras =
   | 'JEFE_COMPRAS'       // Permisos completos: crear, dar de baja, sincronizar
@@ -36,15 +36,14 @@ export type RolCompras =
  * Mapeadas directamente a los endpoints de comprasService.ts.
  */
 export type AccionCompras =
-  | 'INGRESAR_STOCK'      // Ejecuta el ingreso real al stock — solo OPERATIVO al confirmar
-  | 'DESCONTAR_STOCK'     // → comprasService.descontarStock()
-  | 'DAR_DE_BAJA'         // Baja lógica de variante (solo JEFE)
-  | 'CONSULTAR'           // → comprasService.consultarStock()
-  | 'SINCRONIZAR'         // → comprasService.sincronizarCloud() (solo JEFE)
-  | 'INFORMATIVO'         // La IA pide más datos o responde sin ejecutar
-  | 'CONFIRMAR_RECEPCION' // OPERATIVO: confirma haber recibido una tarea del Jefe
-  | 'CREAR_PRODUCTO'      // JEFE: delega ingreso de mercancía al OPERATIVO
-  | 'AUTORIZAR_AJUSTE';   // JEFE: autoriza un ajuste de stock manual
+  | 'CREAR_ORDEN'         // JEFE: Crea nueva orden de compra
+  | 'APROBAR_ORDEN'       // JEFE: Aprueba una orden de compra
+  | 'ANULAR_ORDEN'        // JEFE: Anula una orden
+  | 'CREAR_PROVEEDOR'     // JEFE: Crea un proveedor
+  | 'CONSULTAR_ORDEN'     // Todos: Consultar orden de compra
+  | 'REGISTRAR_RECEPCION' // OPERATIVO: Registra la recepción física de mercadería de una orden
+  | 'REGISTRAR_DEVOLUCION'// AUXILIAR/OPERATIVO: Registra devolución de compra
+  | 'INFORMATIVO';        // Respuesta o pregunta de la IA
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PAYLOAD — Datos de ejecución para comprasService
@@ -56,10 +55,12 @@ export type AccionCompras =
  * no necesitan todos los campos.
  */
 export interface PayloadCompras {
-  idVariante?: number;
-  cantidad?: number;
+  idProveedor?: number;
+  idCompra?: number;
   idBodega?: number;
-  descripcion?: string;
+  productos?: Array<{ idVariante: number; cantidad: number; valor: number }>;
+  observacion?: string;
+  estado?: 'ABI' | 'APR' | 'ANU';
   usuario?: string;
 }
 
@@ -174,33 +175,30 @@ export interface RespuestaAgente {
  */
 export const PERMISOS_POR_ROL: Record<RolCompras, AccionCompras[]> = {
   /**
-   * JEFE_COMPRAS: Puede autorizar y delegar. NO ejecuta ingresos directamente;
-   * los estructura como CREAR_PRODUCTO / AUTORIZAR_AJUSTE con rol_destino OPERATIVO.
+   * JEFE_COMPRAS: Control total sobre el ciclo de compras y proveedores.
    */
   JEFE_COMPRAS: [
-    'CREAR_PRODUCTO',
-    'AUTORIZAR_AJUSTE',
-    'CONFIRMAR_RECEPCION',
-    'DESCONTAR_STOCK',
-    'DAR_DE_BAJA',
-    'CONSULTAR',
-    'SINCRONIZAR',
-    'INFORMATIVO',
-  ],
-  AUXILIAR_COMPRAS: [
-    'INGRESAR_STOCK',
-    'AUTORIZAR_AJUSTE',
-    'CONSULTAR',
+    'CREAR_ORDEN',
+    'APROBAR_ORDEN',
+    'ANULAR_ORDEN',
+    'CREAR_PROVEEDOR',
+    'CONSULTAR_ORDEN',
     'INFORMATIVO',
   ],
   /**
-   * OPERATIVO_COMPRAS: Recibe tareas del Jefe y ejecuta el stock real al confirmar.
-   * INGRESAR_STOCK se permite aqui para que ejecutarTarea() pueda llamar a ingresarStock()
-   * cuando el operativo confirma la recepcion fisica.
+   * AUXILIAR_COMPRAS: Operaciones de apoyo, consultas y devoluciones.
+   */
+  AUXILIAR_COMPRAS: [
+    'CONSULTAR_ORDEN',
+    'REGISTRAR_DEVOLUCION',
+    'INFORMATIVO',
+  ],
+  /**
+   * OPERATIVO_COMPRAS: Solo recibe mercancía físicamente contra una orden.
    */
   OPERATIVO_COMPRAS: [
-    'CONFIRMAR_RECEPCION',
-    'INGRESAR_STOCK',
+    'CONSULTAR_ORDEN',
+    'REGISTRAR_RECEPCION',
     'INFORMATIVO',
   ],
 };
