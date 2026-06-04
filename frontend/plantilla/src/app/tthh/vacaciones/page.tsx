@@ -45,15 +45,15 @@ export default function VacacionesPage() {
       const [vacData, conData, empData] = await Promise.all([
         vacacionService.getAll(),
         contratoService.getAll(),
-        empleadoService.getEmpleados()
+        empleadoService.getEmpleados(1, 1000)
       ])
       
       setVacaciones(Array.isArray(vacData) ? vacData.filter((v: Vacacion) => v.vac_estado !== 'INC') : [])
       setContratos(Array.isArray(conData) ? conData : [])
-      if (Array.isArray(empData)) {
+      if (empData && Array.isArray(empData.data)) {
+        setEmpleados(empData.data)
+      } else if (Array.isArray(empData)) {
         setEmpleados(empData)
-      } else {
-        setEmpleados(empData.data || [])
       }
       setCurrentPage(1)
     } catch (err: any) {
@@ -67,7 +67,7 @@ export default function VacacionesPage() {
     const con = contratos.find(c => c.id_contrato === id_contrato)
     if (!con) return "Contrato Desconocido"
     const emp = empleados.find(e => e.id_empleado === con.id_empleado)
-    return emp ? `${emp.emp_nom1} ${emp.emp_ap1}` : "Empleado Desconocido"
+    return emp ? `${emp.emp_nom1} ${emp.emp_ap1}` : `Empleado #${con.id_empleado}`
   }
 
   const filteredVacaciones = vacaciones.filter(vac => {
@@ -115,45 +115,42 @@ export default function VacacionesPage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { id, value } = e.target
-    
     setFormData(prev => {
-      const next = { ...prev, [id]: value }
-      // Auto-calcular saldo: dias ganados - dias perdidos/gozados
+      const updated = { ...prev, [id]: value }
       if (id === 'vac_diasg' || id === 'vac_diasp') {
-        const ganados = parseInt(id === 'vac_diasg' ? value : next.vac_diasg) || 0
-        const perdidos = parseInt(id === 'vac_diasp' ? value : next.vac_diasp) || 0
-        next.vac_saldo = String(ganados - perdidos)
+        const dg = parseFloat(updated.vac_diasg) || 0
+        const dp = parseFloat(updated.vac_diasp) || 0
+        updated.vac_saldo = String(dg - dp)
       }
-      return next
+      return updated
     })
   }
 
   const handleSave = async () => {
-    if (!formData.id_contrato || !formData.vac_periodo) {
-      toast.error("Por favor selecciona el contrato y el periodo")
+    if (!formData.id_contrato || !formData.vac_periodo || !formData.vac_diasg || !formData.vac_saldo) {
+      toast.error("Por favor completa los campos obligatorios")
       return
     }
 
     try {
-      const data: Vacacion = {
+      const data: any = {
         ...(editingVac || {}),
         id_contrato: parseInt(formData.id_contrato),
-        vac_estado: editingVac ? editingVac.vac_estado : "Programada",
         vac_periodo: formData.vac_periodo,
-        vac_diasg: parseInt(formData.vac_diasg) || 0,
-        vac_diasp: parseInt(formData.vac_diasp) || 0,
-        vac_saldo: parseInt(formData.vac_saldo) || 0,
-        vac_fechafin: formData.vac_fechafin
+        vac_diasg: parseFloat(formData.vac_diasg),
+        vac_diasp: parseFloat(formData.vac_diasp),
+        vac_saldo: parseFloat(formData.vac_saldo),
+        vac_estado: editingVac ? editingVac.vac_estado : "ACT"
       }
 
-      if (editingVac && editingVac.id_vacacion) {
-        await vacacionService.update(editingVac.id_vacacion, data)
-        setVacaciones(prev => prev.map(v => v.id_vacacion === editingVac.id_vacacion ? { ...v, ...data } : v))
-        toast.success("Saldo de vacaciones actualizado")
+      if (editingVac && editingVac.id_vacaciones) {
+        await vacacionService.update(editingVac.id_vacaciones, data)
+        setVacaciones(prev => prev.map(v => v.id_vacaciones === editingVac.id_vacaciones ? { ...v, ...data } : v))
+        toast.success("Registro de vacaciones actualizado exitosamente")
       } else {
         const created = await vacacionService.create(data)
         setVacaciones(prev => [created, ...prev])
-        toast.success("Saldo de vacaciones registrado")
+        toast.success("Registro de vacaciones creado exitosamente")
       }
       handleCloseModal()
     } catch (err: any) {
@@ -163,13 +160,13 @@ export default function VacacionesPage() {
   }
 
   const handleDelete = async (vac: Vacacion) => {
-    if (!vac.id_vacacion) return
-    if (!confirm(`¿Seguro que deseas eliminar el registro de vacaciones de este periodo?`)) return
+    if (!vac.id_vacaciones) return
+    if (!confirm(`¿Seguro que deseas eliminar este registro de vacaciones?`)) return
 
     try {
-      await vacacionService.delete(vac.id_vacacion)
-      setVacaciones(prev => prev.filter(v => v.id_vacacion !== vac.id_vacacion))
-      toast.success("Registro eliminado")
+      await vacacionService.delete(vac.id_vacaciones)
+      setVacaciones(prev => prev.filter(v => v.id_vacaciones !== vac.id_vacaciones))
+      toast.success("Registro de vacaciones eliminado")
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al eliminar"))
@@ -178,8 +175,8 @@ export default function VacacionesPage() {
 
   return (
     <BaseLayout 
-      title="Saldos de Vacaciones" 
-      description="Control de días ganados, gozados y saldos de vacaciones por contrato."
+      title="Gestión de Vacaciones" 
+      description="Control del saldo de días de vacaciones de los empleados."
     >
       <div className="flex flex-col gap-4 px-4 lg:px-6 mt-6">
         
@@ -188,15 +185,15 @@ export default function VacacionesPage() {
             <Plane className="text-primary" size={20} />
             <h2 className="text-lg font-semibold">Vacaciones</h2>
           </div>
-          <Button onClick={() => handleOpenModal()} className="gap-2 bg-sky-600 hover:bg-sky-700">
-            <Plus size={16} /> Asignar Saldo
+          <Button onClick={() => handleOpenModal()} className="gap-2">
+            <Plus size={16} /> Nuevo Registro
           </Button>
         </div>
 
         <div className="flex items-center bg-white p-1 rounded-lg shadow-sm border w-full max-w-md">
           <Search className="text-muted-foreground ml-2 mr-2 w-5 h-5" />
           <Input 
-            placeholder="Buscar por empleado o periodo..." 
+            placeholder="Buscar por empleado o período..." 
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value)
@@ -216,10 +213,10 @@ export default function VacacionesPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Empleado</TableHead>
-                  <TableHead>Periodo</TableHead>
-                  <TableHead className="text-center">Días Ganados</TableHead>
-                  <TableHead className="text-center">Días Gozados</TableHead>
-                  <TableHead className="text-center">Saldo Disponible</TableHead>
+                  <TableHead>Período (Año)</TableHead>
+                  <TableHead>Días Ganados</TableHead>
+                  <TableHead>Días Tomados</TableHead>
+                  <TableHead>Saldo de Días</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -232,12 +229,12 @@ export default function VacacionesPage() {
                   </TableRow>
                 ) : (
                   currentVacaciones.map((vac) => (
-                    <TableRow key={vac.id_vacacion}>
-                      <TableCell className="font-medium text-blue-600">{getEmpleadoFromContrato(vac.id_contrato)}</TableCell>
+                    <TableRow key={vac.id_vacaciones}>
+                      <TableCell className="font-medium">{getEmpleadoFromContrato(vac.id_contrato)}</TableCell>
                       <TableCell>{vac.vac_periodo}</TableCell>
-                      <TableCell className="text-center text-emerald-600 font-medium">+{vac.vac_diasg}</TableCell>
-                      <TableCell className="text-center text-red-500 font-medium">-{vac.vac_diasp}</TableCell>
-                      <TableCell className="text-center font-bold">{vac.vac_saldo}</TableCell>
+                      <TableCell>{vac.vac_diasg}</TableCell>
+                      <TableCell>{vac.vac_diasp}</TableCell>
+                      <TableCell className="font-semibold">{vac.vac_saldo}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => handleOpenModal(vac)}>
                           <Edit2 size={16} className="text-blue-500" />
@@ -259,50 +256,51 @@ export default function VacacionesPage() {
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>{editingVac ? "Editar Saldo" : "Asignar Saldo de Vacaciones"}</DialogTitle>
+            <DialogTitle>{editingVac ? "Editar Registro" : "Nuevo Registro de Vacaciones"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            
             <div className="grid gap-2">
-              <Label htmlFor="id_contrato">Contrato del Empleado *</Label>
+              <Label htmlFor="id_contrato">Contrato (Empleado) *</Label>
               <select 
                 id="id_contrato" 
                 className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
                 value={formData.id_contrato}
                 onChange={handleInputChange as any}
-                disabled={!!editingVac}
               >
-                <option value="">Seleccione un contrato...</option>
+                <option value="">Seleccione...</option>
                 {contratos.map(con => (
                   <option key={con.id_contrato} value={con.id_contrato}>
-                    {getEmpleadoFromContrato(con.id_contrato)} (Contrato #{con.id_contrato})
+                    {getEmpleadoFromContrato(con.id_contrato)} (Cargo: {con.id_cargo})
                   </option>
                 ))}
               </select>
             </div>
-            
+
             <div className="grid gap-2">
-              <Label htmlFor="vac_periodo">Periodo *</Label>
-              <Input id="vac_periodo" value={formData.vac_periodo} onChange={handleInputChange} placeholder="Ej: 2023-2024" />
+              <Label htmlFor="vac_periodo">Período (Año) *</Label>
+              <Input id="vac_periodo" type="number" min="2000" max="2100" value={formData.vac_periodo} onChange={handleInputChange} />
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-2">
               <div className="grid gap-2">
-                <Label htmlFor="vac_diasg" className="text-emerald-600">Días Ganados</Label>
-                <Input type="number" id="vac_diasg" value={formData.vac_diasg} onChange={handleInputChange} />
+                <Label htmlFor="vac_diasg">Días Ganados *</Label>
+                <Input id="vac_diasg" type="number" value={formData.vac_diasg} onChange={handleInputChange} />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="vac_diasp" className="text-red-500">Días Gozados</Label>
-                <Input type="number" id="vac_diasp" value={formData.vac_diasp} onChange={handleInputChange} />
+                <Label htmlFor="vac_diasp">Días Tomados *</Label>
+                <Input id="vac_diasp" type="number" value={formData.vac_diasp} onChange={handleInputChange} />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="vac_saldo">Saldo</Label>
-                <Input type="number" id="vac_saldo" value={formData.vac_saldo} disabled className="bg-muted font-bold" />
+                <Label htmlFor="vac_saldo">Saldo Restante</Label>
+                <Input id="vac_saldo" type="number" value={formData.vac_saldo} disabled />
               </div>
             </div>
+
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseModal}>Cancelar</Button>
-            <Button onClick={handleSave} className="bg-sky-600 hover:bg-sky-700">Guardar</Button>
+            <Button onClick={handleSave}>Guardar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

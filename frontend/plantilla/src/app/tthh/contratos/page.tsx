@@ -59,13 +59,13 @@ export default function ContratosPage() {
   const fetchData = async () => {
     try {
       setLoading(true)
-      const [conData, carData] = await Promise.all([
+      const [conData, carData, empData] = await Promise.all([
         contratoService.getAll(),
-        cargoService.getAll()
+        cargoService.getAllList(),
+        empleadoService.getAllList()
       ])
       setContratos(Array.isArray(conData) ? conData.filter((c: Contrato) => c.con_estado !== 'INC') : [])
-      // Empleados are no longer loaded here, they are loaded asynchronously
-      // setEmpleados(Array.isArray(empData) ? empData : [])
+      setEmpleados(Array.isArray(empData) ? empData : [])
       setCargos(Array.isArray(carData) ? carData.filter((c: Cargo) => c.car_estado === 'ACT') : [])
       setCurrentPage(1)
     } catch (err: any) {
@@ -76,10 +76,6 @@ export default function ContratosPage() {
   }
 
   const getEmpleadoName = (id: number) => {
-    // We might not have all employees in memory anymore.
-    // However, we only need it for the table. Let's try to get it if we stored it,
-    // otherwise just fetch it on demand or the backend should ideally join the name.
-    // For now, if we don't have it, we'll return ID or a generic string.
     const emp = empleados.find(e => e.id_empleado === id)
     return emp ? `${emp.emp_nom1} ${emp.emp_ap1}` : `Empleado #${id}`
   }
@@ -311,7 +307,6 @@ export default function ContratosPage() {
                     value={formData.id_empleado}
                     onChange={(id, emp) => {
                       setFormData(prev => ({ ...prev, id_empleado: id }))
-                      // Optionally store the selected employee in the employees array so getEmpleadoName works
                       if (emp && !empleados.find(e => e.id_empleado === emp.id_empleado)) {
                         setEmpleados(prev => [...prev, emp])
                       }

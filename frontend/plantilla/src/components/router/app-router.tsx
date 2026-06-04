@@ -38,11 +38,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     if (token && !isPublicRoute) {
-      // Obtener el rol del user_info o usar una lógica simple
       let role = 'operativotth';
       try {
         const ui = JSON.parse(localStorage.getItem('user_info') || '{}');
-        role = ui.rol_nombre || 'operativotth';
+        role = ui.usu_nombre === 'admin' ? 'gerentetth' : (ui.rol_nombre || 'operativotth');
       } catch {}
 
       const p = location.pathname;
