@@ -95,12 +95,7 @@ const data = {
             },
           ],
         },
-        // Alejandro — Talento Humano: agregar aquí cuando esté listo
-        {
-          title: "Compras (Liz)",
-          url: "/dashboard/compras",
-          icon: ShoppingCart,
-        },
+
         {
           title: "Talento Humano (Alejandro)",
           url: "/dashboard-tthh",
