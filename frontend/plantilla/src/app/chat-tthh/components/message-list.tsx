@@ -18,7 +18,7 @@ export function MessageListTTHH({ mensajes, onConfirmTask, onRejectTask, agentTh
   }, [mensajes, agentThinking]);
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-6">
+    <div className="flex-1 overflow-y-auto print:overflow-visible print:h-auto p-4 space-y-6 print:space-y-4 print:text-black">
       {mensajes.length === 0 && !agentThinking && (
         <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground space-y-4">
           <Bot className="h-12 w-12 opacity-20" />
@@ -50,7 +50,7 @@ export function MessageListTTHH({ mensajes, onConfirmTask, onRejectTask, agentTh
                 />
               ) : (
                 <div 
-                  className={`px-4 py-3 rounded-2xl whitespace-pre-wrap break-words ${
+                  className={`px-4 py-3 rounded-2xl whitespace-pre-wrap break-words print:text-black print:bg-transparent print:border print:border-gray-300 print:shadow-none ${
                     isAgent 
                       ? 'bg-muted/60 text-foreground rounded-tl-sm' 
                       : 'bg-primary text-primary-foreground rounded-tr-sm'
