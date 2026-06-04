@@ -385,6 +385,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
           const cantidadSugerida = dataPayload.cantidadEsperada || dataPayload.cantidad || dataPayload.pxo_cantidad || dataPayload.pxd_cantidad;
           const cantidadReal = Math.abs(Number(p.cantidad || p.cant || cantidadSugerida || 0));
 
+          const idCabecera = idSeguro || p.idCabecera || dataPayload.idCabecera;
           console.log("🚀 Disparando RPC de recepción para cabecera:", idCabecera);
 
           resultado = await aprobarRecepcionCabecera(idCabecera, {
@@ -445,6 +446,7 @@ export function useAgent(): UseAgentState & UseAgentActions {
           const cantidadSugerida = dataPayload.cantidadEsperada || dataPayload.cantidad || dataPayload.pxo_cantidad || dataPayload.pxd_cantidad;
           const cantidadReal = Math.abs(Number(p.cantidad || p.cant || cantidadSugerida || 0));
 
+          const idCabecera = idSeguro || p.idCabecera || dataPayload.idCabecera;
           console.log("🚀 Disparando RPC de entrega para cabecera:", idCabecera);
 
           resultado = await aprobarEntregaCabecera(idCabecera, {
