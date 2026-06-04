@@ -288,7 +288,7 @@ const InventarioModel = {
                 id_bodega:        Number(idBodega),
                 ent_descripcion:  descripcion || 'Entrega registrada por Ventas',
                 ent_fechahora_:   new Date().toISOString(),
-                ent_num_productos: productos.length,
+                ent_num_produc:   productos.length,
                 usu_responsable:  usuarioResponsable,
                 ent_estado:       'PEN',
             })
