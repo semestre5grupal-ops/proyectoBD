@@ -23,7 +23,7 @@ router.get('/stock/:idVariante', verificarToken, inventarioController.consultarS
 
 // ─── OPERACIONES DE STOCK ─────────────────────────────────────────────────────
 // Ingresar stock: solo JEFE o OPERATIVO (quien recibe físicamente la mercadería).
-router.post('/ingresar',  verificarToken, restringirA('JEFE_INVENTARIO', 'OPERATIVO_INVENTARIO'), inventarioController.ingresarStock);
+router.post('/ingresar', verificarToken, restringirA('JEFE_INVENTARIO', 'OPERATIVO_INVENTARIO'), inventarioController.ingresarStock);
 
 // Descontar stock: solo JEFE o OPERATIVO (quien procesa la salida de mercadería).
 router.post('/descontar', verificarToken, restringirA('JEFE_INVENTARIO', 'OPERATIVO_INVENTARIO'), inventarioController.descontarStock);
@@ -55,5 +55,8 @@ router.post('/recepciones', verificarToken, inventarioController.registrarRecepc
 
 // POST /api/inventario/entregas — Ventas (Gabo) notifica salida de mercadería
 router.post('/entregas', verificarToken, inventarioController.registrarEntrega);
+
+router.get('/recepciones', verificarToken, inventarioController.consultarRecepciones);
+
 
 module.exports = router;
