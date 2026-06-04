@@ -12,7 +12,7 @@ const getUsuarioById = async (id) => {
 
 const getUsuarioByNombre = async (usu_nombre) => {
   const result = await pool.query(`
-    SELECT u.*, r.rol_nombre 
+    SELECT u.*, r.nombre_rol 
     FROM usuario u 
     LEFT JOIN rol r ON u.id_rol = r.id_rol 
     WHERE u.usu_nombre = $1
