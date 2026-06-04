@@ -122,13 +122,18 @@ export default function CargosPage() {
 
       if (editingCargo && editingCargo.id_cargo) {
         await cargoService.update(editingCargo.id_cargo, data)
+        setCargos(prev => prev.map(c =>
+          c.id_cargo === editingCargo.id_cargo
+            ? { ...c, car_nombre: carNombre, car_sueldobase: Number(carSueldobase), id_departamento: parseInt(idDepartamento) }
+            : c
+        ))
         toast.success("Cargo actualizado exitosamente")
       } else {
-        await cargoService.create(data)
+        const created = await cargoService.create(data)
+        setCargos(prev => [created, ...prev])
         toast.success("Cargo creado exitosamente")
       }
       handleCloseModal()
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al guardar"))
@@ -140,12 +145,9 @@ export default function CargosPage() {
     if (!confirm(`¿Seguro que deseas inactivar el cargo "${cargo.car_nombre}"?`)) return
 
     try {
-      await cargoService.update(cargo.id_cargo, {
-        ...cargo,
-        car_estado: "INC"
-      })
+      await cargoService.update(cargo.id_cargo, { ...cargo, car_estado: "INC" })
+      setCargos(prev => prev.filter(c => c.id_cargo !== cargo.id_cargo))
       toast.success("Cargo inactivado")
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al inactivar"))

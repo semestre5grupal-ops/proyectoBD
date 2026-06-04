@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { CalendarDays, ChevronDown, ChevronRight } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { toast } from "sonner"
 
 export default function PeriodosPage() {
   const [periodos, setPeriodos] = useState<Periodo[]>([])
@@ -100,11 +101,11 @@ export default function PeriodosPage() {
     if (!confirm(`¿Seguro que deseas cerrar el período "${per.per_descripcion}"? Esta acción no se puede deshacer fácilmente.`)) return
 
     try {
-      await periodoService.update(per.id_rolpago2, {
-        ...per,
-        per_estado: "CER"
-      })
-      fetchData()
+      await periodoService.update(per.id_rolpago2, { ...per, per_estado: "CER" })
+      setPeriodos(prev => prev.map(p =>
+        p.id_rolpago2 === per.id_rolpago2 ? { ...p, per_estado: 'CER' } : p
+      ))
+      toast.success(`Periodo "${per.per_descripcion}" cerrado`)
     } catch (err: any) {
       console.error(err)
       alert("Ocurrió un error al cerrar el período: " + (err.message || ""))

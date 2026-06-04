@@ -149,13 +149,16 @@ export default function EmpleadosPage() {
 
       if (editingEmp && editingEmp.id_empleado) {
         await empleadoService.updateEmpleado(editingEmp.id_empleado, data)
+        setEmpleados(prev => prev.map(e =>
+          e.id_empleado === editingEmp.id_empleado ? { ...e, ...data } : e
+        ))
         toast.success("Empleado actualizado exitosamente")
       } else {
-        await empleadoService.createEmpleado(data)
+        const created = await empleadoService.createEmpleado(data)
+        setEmpleados(prev => [created, ...prev])
         toast.success("Empleado creado exitosamente")
       }
       handleCloseModal()
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al guardar"))
@@ -168,8 +171,8 @@ export default function EmpleadosPage() {
 
     try {
       await empleadoService.deleteEmpleado(emp.id_empleado)
+      setEmpleados(prev => prev.filter(e => e.id_empleado !== emp.id_empleado))
       toast.success("Empleado eliminado")
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al eliminar"))

@@ -148,13 +148,14 @@ export default function PermisosPage() {
 
       if (editingPermiso && editingPermiso.id_permiso) {
         await permisoService.update(editingPermiso.id_permiso, data)
+        setPermisos(prev => prev.map(p => p.id_permiso === editingPermiso.id_permiso ? { ...p, ...data } : p))
         toast.success("Permiso actualizado exitosamente")
       } else {
-        await permisoService.create(data)
+        const created = await permisoService.create(data)
+        setPermisos(prev => [created, ...prev])
         toast.success("Permiso registrado exitosamente")
       }
       handleCloseModal()
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al guardar"))
@@ -167,8 +168,8 @@ export default function PermisosPage() {
 
     try {
       await permisoService.delete(per.id_permiso)
+      setPermisos(prev => prev.filter(p => p.id_permiso !== per.id_permiso))
       toast.success("Permiso eliminado")
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al eliminar"))
@@ -180,11 +181,11 @@ export default function PermisosPage() {
     if (!confirm(`¿Seguro que deseas Aprobar el permiso de ${getEmpleadoName(per.id_empleado)}?`)) return
     try {
       await permisoService.update(per.id_permiso, { ...per, per_estado: 'APR' })
+      setPermisos(prev => prev.map(p => p.id_permiso === per.id_permiso ? { ...p, per_estado: 'APR' } : p))
       toast.success("Permiso aprobado")
-      fetchData()
     } catch (err: any) {
       console.error(err)
-      toast.error("Error al aprobar: " + (err.message || "Ocurrió un error"))
+      toast.error("Error al aprobar: " + (err.message || ""))
     }
   }
 
@@ -193,11 +194,11 @@ export default function PermisosPage() {
     if (!confirm(`¿Seguro que deseas Rechazar el permiso de ${getEmpleadoName(per.id_empleado)}?`)) return
     try {
       await permisoService.update(per.id_permiso, { ...per, per_estado: 'REZ' })
+      setPermisos(prev => prev.map(p => p.id_permiso === per.id_permiso ? { ...p, per_estado: 'REZ' } : p))
       toast.success("Permiso rechazado")
-      fetchData()
     } catch (err: any) {
       console.error(err)
-      toast.error("Error al rechazar: " + (err.message || "Ocurrió un error"))
+      toast.error("Error al rechazar: " + (err.message || ""))
     }
   }
 

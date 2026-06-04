@@ -146,13 +146,14 @@ export default function AsistenciasPage() {
 
       if (editingAsistencia && editingAsistencia.id_asistencia) {
         await asistenciaService.update(editingAsistencia.id_asistencia, data)
+        setAsistencias(prev => prev.map(a => a.id_asistencia === editingAsistencia.id_asistencia ? { ...a, ...data } : a))
         toast.success("Asistencia actualizada exitosamente")
       } else {
-        await asistenciaService.create(data)
+        const created = await asistenciaService.create(data)
+        setAsistencias(prev => [created, ...prev])
         toast.success("Asistencia registrada exitosamente")
       }
       handleCloseModal()
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al guardar"))
@@ -165,8 +166,8 @@ export default function AsistenciasPage() {
 
     try {
       await asistenciaService.delete(asis.id_asistencia)
+      setAsistencias(prev => prev.filter(a => a.id_asistencia !== asis.id_asistencia))
       toast.success("Registro eliminado")
-      fetchData()
     } catch (err: any) {
       console.error(err)
       toast.error("Error: " + (err.message || "Ocurrió un error al eliminar"))

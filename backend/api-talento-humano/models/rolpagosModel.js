@@ -1,9 +1,17 @@
 const { pool } = require('../config/db');
 
 const getRolpagoss = async () => {
-  const result = await pool.query('SELECT * FROM rolpagos');
+  const result = await pool.query(`
+    SELECT 
+      r.*,
+      TRIM(CONCAT(e.emp_nom1, ' ', e.emp_ap1)) AS emp_nombre_completo
+    FROM rolpagos r
+    LEFT JOIN empleados e ON r.id_empleado = e.id_empleado
+    ORDER BY r.id_rol DESC
+  `);
   return result.rows;
 };
+
 
 const getRolpagosById = async (id) => {
   const result = await pool.query('SELECT * FROM rolpagos WHERE id_rol = $1', [id]);
