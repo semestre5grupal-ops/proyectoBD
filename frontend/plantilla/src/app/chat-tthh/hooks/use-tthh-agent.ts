@@ -231,6 +231,29 @@ export function useTTHHAgent(): UseTTHHAgentState & UseTTHHAgentActions {
             rolInfo = `Último rol: Neto $${lastRol.rol_neto}, Días trabajados: ${lastRol.rol_dias_trabajados}, Bonos $${lastRol.rol_bontotal}, Descuentos $${lastRol.rol_destotal}.`;
           }
 
+          // INYECTAR TARJETA UI "WOW FACTOR"
+          agregarMensaje({
+            id: `msg-emp-card-${Date.now()}`,
+            content: '',
+            timestamp: new Date().toISOString(),
+            senderId: 'system',
+            type: 'employee_card',
+            isEdited: false,
+            reactions: [],
+            replyTo: null,
+            empleado_data: {
+              nombre: `${emp.emp_nom1} ${emp.emp_nom2 || ''} ${emp.emp_ap1} ${emp.emp_ap2 || ''}`.trim(),
+              cedula: emp.emp_cedula,
+              correo: emp.emp_email,
+              telefono: emp.emp_telefono,
+              sueldoBase,
+              vacSaldoTotal,
+              asistencias: totalAsistencias,
+              fechaInicio: contratoActivo?.con_fechainicio,
+              estado: contratoActivo?.con_estado || 'INACTIVO'
+            }
+          });
+
           // Cálculo de liquidación predictiva
           let calculoLiquidacion = "";
           if (contratoActivo && contratoActivo.con_fechainicio && sueldoBase > 0) {

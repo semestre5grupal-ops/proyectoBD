@@ -48,12 +48,13 @@ export interface MensajeTTHH {
   id: string;
   content: string;
   timestamp: string;
-  senderId: 'user' | 'agent' | string;
-  type: 'text' | 'image' | 'file' | 'thinking' | 'task_card';
+  senderId: 'user' | 'agent' | 'system' | string;
+  type: 'text' | 'image' | 'file' | 'thinking' | 'task_card' | 'employee_card';
   isEdited: boolean;
   reactions: Array<{ emoji: string; users: string[]; count: number }>;
   replyTo: string | null;
   tarea?: TareaTTHH;
+  empleado_data?: Record<string, any>;
 }
 
 export interface RespuestaAgenteTTHH {
