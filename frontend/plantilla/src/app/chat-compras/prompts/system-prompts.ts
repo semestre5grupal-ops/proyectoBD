@@ -58,7 +58,7 @@ RESPONDE SIEMPRE Y ÚNICAMENTE con un objeto JSON con esta estructura:
 }
 
 Ejemplos:
-- "Crea una orden para el proveedor Coca Cola con 20 unidades del producto 3 a 5.50 cada uno" →
+- "Crea una orden para el proveedor Textiles x con 20 unidades del producto 3 a 5.50 cada uno" →
   { "accion": "CREAR_ORDEN", "payload": { "nombreProveedor": "Coca Cola", "productos": [{ "idVariante": 3, "cantidad": 20, "valor": 5.50 }] }, "confirmacion_requerida": true, "mensaje_usuario": "Preparando orden de compra para Coca Cola. Por favor confirma." }
 
 - "Consulta el estado de la orden 12" →
